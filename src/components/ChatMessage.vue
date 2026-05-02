@@ -71,7 +71,7 @@
     <el-dialog
       v-model="showMetaDialog"
       title="消息元数据"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       destroy-on-close
     >
       <pre v-if="message.meta" class="meta-content">{{ JSON.stringify(message.meta, null, 2) }}</pre>
@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { User, ChatDotRound, MoreFilled, Edit, Delete, InfoFilled } from '@element-plus/icons-vue'
 import type { Message } from '@/types'
 import MarkdownRenderer from './MarkdownRenderer.vue'
@@ -101,6 +101,21 @@ const emit = defineEmits<{
 }>()
 
 const messageStore = useMessageStore()
+
+// 移动端检测
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const isUser = computed(() => props.message.role === 'user')
 
@@ -301,6 +316,26 @@ const showMetaDialog = ref(false)
   font-size: 12px;
   line-height: 1.6;
   margin: 0;
+  text-align: left;
+}
+
+/* 元数据弹窗内容居中 */
+:deep(.el-dialog__body) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+
+:deep(.el-dialog__body .meta-content) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+:deep(.el-dialog__body .el-empty) {
+  margin: 20px 0;
 }
 
 /* 下拉菜单样式 */

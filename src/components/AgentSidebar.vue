@@ -99,7 +99,7 @@
     <el-dialog
       v-model="showAgentDialog"
       title="智能体设置"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       destroy-on-close
     >
       <el-form :model="agentForm" label-width="80px">
@@ -161,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import {
   Expand,
   Fold,
@@ -176,6 +176,21 @@ import { useAgentStore, useChatStore, useMessageStore } from '@/stores'
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
 const messageStore = useMessageStore()
+
+// 移动端检测
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const isOpen = ref(false)
 const showAgentDialog = ref(false)

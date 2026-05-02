@@ -89,7 +89,7 @@
     <el-dialog
       v-model="showRestoreResult"
       title="恢复完成"
-      width="400px"
+      :width="isMobile ? '90%' : '400px'"
     >
       <div v-if="restoreStats" class="restore-stats">
         <div class="stats-item">
@@ -143,7 +143,7 @@
     <el-dialog
       v-model="showClearConfirm"
       title="确认清空数据"
-      width="400px"
+      :width="isMobile ? '90%' : '400px'"
     >
       <div class="clear-warning">
         <el-icon class="warning-icon" :size="48" color="#f56c6c"><Warning /></el-icon>
@@ -161,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Download, Upload, Delete, Warning } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { UploadFile } from 'element-plus'
@@ -173,6 +173,21 @@ import {
   getDataOverview,
   type RestoreStats
 } from '@/utils/backup'
+
+// 移动端检测
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const overview = ref({
   agents: 0,

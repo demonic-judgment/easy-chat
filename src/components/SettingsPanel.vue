@@ -2,10 +2,16 @@
   <el-drawer
     v-model="visible"
     title="设置"
-    size="500px"
+    :size="isMobile ? '100%' : '500px'"
     destroy-on-close
+    custom-class="settings-drawer"
   >
-    <el-tabs v-model="activeTab" class="settings-tabs">
+    <el-tabs
+      v-model="activeTab"
+      class="settings-tabs"
+      :class="{ 'mobile-tabs': isMobile }"
+      :tab-position="isMobile ? 'left' : 'top'"
+    >
       <!-- 大模型配置 -->
       <el-tab-pane label="模型配置" name="model">
         <div class="settings-section">
@@ -204,7 +210,7 @@
     <el-dialog
       v-model="showModelDialog"
       :title="editingModelId ? '编辑模型' : '添加模型'"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       destroy-on-close
     >
       <el-form :model="modelForm" label-width="100px">
@@ -237,7 +243,7 @@
     <el-dialog
       v-model="showTemplateDialog"
       :title="editingTemplateId ? '编辑模板' : '添加模板'"
-      width="800px"
+      :width="isMobile ? '95%' : '800px'"
       destroy-on-close
     >
       <el-form :model="templateForm" label-width="100px">
@@ -323,7 +329,7 @@
     <el-dialog
       v-model="showPromptDialog"
       :title="editingPromptId ? '编辑提示词' : '添加提示词'"
-      width="500px"
+      :width="isMobile ? '90%' : '500px'"
       destroy-on-close
       append-to-body
     >
@@ -356,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
 import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue'
 import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
 import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
@@ -370,6 +376,21 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
 }>()
+
+// 移动端检测
+const isMobile = ref(false)
+const checkMobile = () => {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 
 const modelStore = useModelStore()
 const promptStore = usePromptStore()
@@ -682,6 +703,53 @@ const getAgentNameById = (agentId: string) => {
 .settings-tabs :deep(.el-tab-pane) {
   height: calc(100vh - 120px);
   overflow-y: auto;
+}
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+  .settings-tabs :deep(.el-tab-pane) {
+    height: calc(100vh - 80px);
+  }
+
+  .settings-tabs.mobile-tabs :deep(.el-tabs__header) {
+    width: 80px;
+    min-width: 80px;
+  }
+
+  .settings-tabs.mobile-tabs :deep(.el-tabs__item) {
+    padding: 0 8px;
+    font-size: 12px;
+    text-align: center;
+    white-space: normal;
+    line-height: 1.4;
+    height: auto;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .settings-section {
+    padding: 12px;
+  }
+
+  .model-card-header,
+  .template-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .model-actions,
+  .template-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .avatar-upload {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .settings-section {

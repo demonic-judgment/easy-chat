@@ -15,3 +15,45 @@ a {
 a:hover {
   color: #ff6b9d;
 }
+
+/* 移动端全局适配 */
+@media screen and (max-width: 768px) {
+  /* 确保弹窗在移动端不会超出屏幕 */
+  .el-dialog {
+    max-width: 95vw !important;
+    margin: 10px auto !important;
+  }
+
+  /* 移动端表单优化 */
+  .el-form-item {
+    margin-bottom: 12px;
+  }
+
+  .el-form-item__label {
+    float: none;
+    display: block;
+    text-align: left;
+    padding: 0 0 8px;
+  }
+
+  /* 移动端按钮优化 */
+  .el-button {
+    padding: 8px 15px;
+  }
+
+  /* 移动端输入框优化 */
+  .el-input__inner {
+    height: 36px;
+  }
+
+  /* 移动端卡片优化 */
+  .el-card {
+    margin-bottom: 8px;
+  }
+
+  /* 移动端标签页优化 */
+  .el-tabs__item {
+    padding: 0 12px;
+    font-size: 13px;
+  }
+}

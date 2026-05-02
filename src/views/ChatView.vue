@@ -267,6 +267,7 @@ const handleSendMessage = async (content: string) => {
 
           if (event.done) {
             meta = event.meta
+            console.log("[Client] Received done event, meta:", JSON.stringify(meta))
           }
         } catch (e) {
           // 忽略解析错误
@@ -294,6 +295,7 @@ const handleSendMessage = async (content: string) => {
     }
 
     // 更新最终消息内容和元数据
+    console.log("[Client] Updating message with meta:", JSON.stringify(meta))
     messageStore.updateMessage(message.id, {
       content: fullContent,
       meta
@@ -359,15 +361,46 @@ watch(currentMessages, () => {
   border-right: 1px solid rgba(255, 133, 162, 0.1);
 }
 
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+  .chat-container {
+    padding: 0;
+  }
+
+  .chat-main {
+    max-width: 100%;
+    border-left: none;
+    border-right: none;
+  }
+
+  .chat-header {
+    padding: 12px 16px;
+  }
+
+  .chat-header .settings-btn {
+    right: 16px;
+  }
+
+  .chat-messages {
+    padding: 16px;
+  }
+}
+
 /* 头部 */
 .chat-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 16px 24px;
   border-bottom: 1px solid rgba(255, 133, 162, 0.2);
   background: rgba(255, 255, 255, 0.8);
   flex-shrink: 0;
+  position: relative;
+}
+
+.chat-header .settings-btn {
+  position: absolute;
+  right: 24px;
 }
 
 .chat-title {

@@ -228,6 +228,8 @@ async function handleStreamRequest(
     (async () => {
       try {
         let buffer = "";
+        let accumulatedMeta: Record<string, any> | undefined;
+        let hasSentDone = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -245,10 +247,14 @@ async function handleStreamRequest(
 
             // 处理流结束标记
             if (data === "[DONE]") {
-              const event: StreamEvent = { done: true };
-              await writer.write(
-                encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
-              );
+              // 发送最终的 done 事件，包含累积的 meta 数据
+              if (!hasSentDone) {
+                const event: StreamEvent = { done: true, meta: accumulatedMeta };
+                await writer.write(
+                  encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+                );
+                hasSentDone = true;
+              }
               continue;
             }
 
@@ -263,14 +269,21 @@ async function handleStreamRequest(
                 );
               }
 
+              // 累积 meta 数据
+              const meta = extractStreamMeta(parsed);
+              if (meta) {
+                accumulatedMeta = { ...accumulatedMeta, ...meta };
+              }
+
               // 检查是否完成
               const isDone = checkStreamComplete(parsed);
-              if (isDone) {
-                const meta = extractStreamMeta(parsed);
-                const event: StreamEvent = { done: true, meta };
+              if (isDone && !hasSentDone) {
+                console.log("[Server] Stream complete, meta:", JSON.stringify(accumulatedMeta));
+                const event: StreamEvent = { done: true, meta: accumulatedMeta };
                 await writer.write(
                   encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
                 );
+                hasSentDone = true;
               }
             } catch (e) {
               // 忽略解析错误
@@ -293,11 +306,24 @@ async function handleStreamRequest(
                     encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
                   );
                 }
+                // 累积 meta 数据
+                const meta = extractStreamMeta(parsed);
+                if (meta) {
+                  accumulatedMeta = { ...accumulatedMeta, ...meta };
+                }
               } catch (e) {
                 // 忽略解析错误
               }
             }
           }
+        }
+
+        // 确保发送 done 事件（如果还没有发送过）
+        if (!hasSentDone) {
+          const event: StreamEvent = { done: true, meta: accumulatedMeta };
+          await writer.write(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
+          );
         }
       } catch (error) {
         const event: StreamEvent = {

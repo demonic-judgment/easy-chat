@@ -111,4 +111,24 @@ const sendMessage = () => {
   transform: none;
   box-shadow: none;
 }
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+  .chat-input-wrapper {
+    padding: 12px 16px;
+  }
+
+  .chat-input-container {
+    max-width: 100%;
+  }
+
+  :deep(.el-textarea__inner) {
+    font-size: 16px; /* 防止 iOS 缩放 */
+  }
+
+  .send-btn {
+    padding: 8px 20px;
+    font-size: 14px;
+  }
+}
 </style>
