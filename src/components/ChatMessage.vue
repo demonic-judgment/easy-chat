@@ -490,11 +490,6 @@ defineExpose({
 
 /* 操作按钮 */
 .message-actions {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-
-.message-header:hover .message-actions {
   opacity: 1;
 }
 

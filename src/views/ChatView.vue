@@ -396,6 +396,9 @@ const handleRegenerate = async (messageId: string) => {
   isLoading.value = true
   abortController.value = new AbortController()
 
+  // 先将当前内容保存为变体
+  messageStore.addMessageVariant(messageId, message.content, message.meta)
+
   try {
     const model = modelStore.getModelById(modelStore.currentModelId)
     if (!model) throw new Error('未找到模型配置')
@@ -461,6 +464,9 @@ const handleRegenerate = async (messageId: string) => {
 
           if (event.content) {
             fullContent += event.content
+            // 实时更新消息内容，实现打字机效果
+            messageStore.updateMessage(messageId, { content: fullContent })
+            scrollToBottom()
           }
 
           if (event.done) {
@@ -491,8 +497,7 @@ const handleRegenerate = async (messageId: string) => {
       }
     }
 
-    // 将当前内容保存为变体，然后更新为新内容
-    messageStore.addMessageVariant(messageId, message.content, message.meta)
+    // 更新最终消息内容和元数据
     messageStore.updateMessage(messageId, {
       content: fullContent,
       meta
