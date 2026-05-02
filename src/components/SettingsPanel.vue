@@ -193,6 +193,11 @@
           <el-button @click="resetSettings">恢复默认</el-button>
         </div>
       </el-tab-pane>
+
+      <!-- 数据管理 -->
+      <el-tab-pane label="数据管理" name="data">
+        <DataManager />
+      </el-tab-pane>
     </el-tabs>
 
     <!-- 模型编辑对话框 -->
@@ -356,6 +361,7 @@ import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue'
 import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
 import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
 import { validateTemplate, getDefaultTemplate } from '@/utils/templateParser'
+import DataManager from './DataManager.vue'
 
 const props = defineProps<{
   modelValue: boolean
