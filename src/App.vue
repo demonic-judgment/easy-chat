@@ -1,107 +1,83 @@
-<script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
-import { ref } from 'vue'
-
-const name = ref('Unknown')
-
-const getName = async () => {
-  const res = await fetch('/api/')
-  const data = await res.json()
-  name.value = data.name
-}
-</script>
-
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-      <button class="green" @click="getName" aria-label="get name">
-        Name from API is: {{ name }}
-      </button>
-      <p>Edit <code>server/index.ts</code> to change what the API gets</p>
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
-      </nav>
-    </div>
-  </header>
-
-  <RouterView />
+  <div class="app-container" :style="backgroundStyle">
+    <RouterView />
+  </div>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<script setup lang="ts">
+import { computed } from 'vue'
+import { RouterView } from 'vue-router'
+import { useSettingsStore } from '@/stores'
+
+const settingsStore = useSettingsStore()
+
+const backgroundStyle = computed(() => {
+  const { type, value, opacity } = settingsStore.settings.background
+  if (type === 'image') {
+    return {
+      backgroundImage: `url(${value})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed'
+    }
+  }
+  return {
+    backgroundColor: value
+  }
+})
+</script>
+
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-nav {
+.app-container {
+  min-height: 100vh;
   width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
 }
 
-nav a.router-link-exact-active {
-  color: var(--color-text);
+/* Element Plus 主题色覆盖 */
+:root {
+  --el-color-primary: #ff85a2;
+  --el-color-primary-light-3: #ffa8c2;
+  --el-color-primary-light-5: #ffc4d6;
+  --el-color-primary-light-7: #ffe0eb;
+  --el-color-primary-light-8: #ffeff5;
+  --el-color-primary-light-9: #fff5f8;
+  --el-color-primary-dark-2: #e66b8a;
 }
 
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-nav a:first-of-type {
-  border: 0;
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 133, 162, 0.3);
+  border-radius: 4px;
 }
 
-button {
-  background-color: hsla(160, 100%, 37%, 1);
-  color: var(--color-background);
-  border: 0;
-  padding: 0.5rem 1rem;
-  border-radius: 0.25rem;
-  cursor: pointer;
-  margin: 1rem 0 0.5rem 0;
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 133, 162, 0.5);
 }
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
+/* 选中文字样式 */
+::selection {
+  background: rgba(255, 133, 162, 0.3);
+  color: inherit;
 }
 </style>
