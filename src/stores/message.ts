@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Message, MessageRole } from '@/types'
+import type { Message, MessageRole, MessageVariant } from '@/types'
 import { generateId } from '@/utils/id'
 
 export const useMessageStore = defineStore('message', () => {
@@ -61,7 +61,9 @@ export const useMessageStore = defineStore('message', () => {
         content: data.content ?? existing.content,
         promptId: data.promptId ?? existing.promptId,
         meta: data.meta ?? existing.meta,
-        createdAt: existing.createdAt
+        createdAt: existing.createdAt,
+        variants: data.variants ?? existing.variants,
+        currentVariantIndex: data.currentVariantIndex ?? existing.currentVariantIndex
       }
       const index = messages.value.findIndex(m => m.id === id)
       if (index !== -1) {
@@ -88,6 +90,87 @@ export const useMessageStore = defineStore('message', () => {
     saveMessages()
   }
 
+  // 删除消息及之后的所有消息
+  const deleteMessageAndAfter = (chatId: string, messageId: string) => {
+    const chatMessages = getMessagesByChatId(chatId)
+    const targetIndex = chatMessages.findIndex(m => m.id === messageId)
+    if (targetIndex === -1) return false
+
+    const messagesToDelete = chatMessages.slice(targetIndex)
+    const idsToDelete = new Set(messagesToDelete.map(m => m.id))
+
+    messages.value = messages.value.filter(m => !idsToDelete.has(m.id))
+    saveMessages()
+    return true
+  }
+
+  // 添加消息变体（用于重新生成功能）
+  const addMessageVariant = (messageId: string, content: string, meta?: Record<string, any>): boolean => {
+    const existing = messages.value.find(m => m.id === messageId)
+    if (!existing || existing.role !== 'assistant') return false
+
+    // 如果是第一次添加变体，先将当前内容保存为第一个变体
+    let variants = existing.variants || []
+    if (variants.length === 0) {
+      const originalVariant: MessageVariant = {
+        id: generateId(),
+        content: existing.content,
+        meta: existing.meta,
+        createdAt: existing.createdAt
+      }
+      variants = [originalVariant]
+    }
+
+    const variant: MessageVariant = {
+      id: generateId(),
+      content,
+      meta,
+      createdAt: Date.now()
+    }
+
+    variants.push(variant)
+
+    const updated: Message = {
+      ...existing,
+      variants,
+      currentVariantIndex: variants.length - 1
+    }
+
+    const index = messages.value.findIndex(m => m.id === messageId)
+    if (index !== -1) {
+      messages.value[index] = updated
+      saveMessages()
+      return true
+    }
+    return false
+  }
+
+  // 切换消息变体
+  const switchVariant = (messageId: string, variantIndex: number): boolean => {
+    const existing = messages.value.find(m => m.id === messageId)
+    if (!existing || !existing.variants || variantIndex < 0 || variantIndex >= existing.variants.length) {
+      return false
+    }
+
+    const variant = existing.variants[variantIndex]
+    if (!variant) return false
+
+    const updated: Message = {
+      ...existing,
+      content: variant.content,
+      meta: variant.meta,
+      currentVariantIndex: variantIndex
+    }
+
+    const index = messages.value.findIndex(m => m.id === messageId)
+    if (index !== -1) {
+      messages.value[index] = updated
+      saveMessages()
+      return true
+    }
+    return false
+  }
+
   // 初始化时加载数据
   loadMessages()
 
@@ -99,6 +182,9 @@ export const useMessageStore = defineStore('message', () => {
     updateMessage,
     deleteMessage,
     deleteMessagesByChatId,
+    deleteMessageAndAfter,
+    addMessageVariant,
+    switchVariant,
     loadMessages,
     saveMessages
   }

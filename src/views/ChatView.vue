@@ -36,7 +36,7 @@
         <div class="chat-messages" ref="messagesContainer">
           <template v-if="currentMessages.length > 0">
             <ChatMessage
-              v-for="message in currentMessages"
+              v-for="(message, index) in currentMessages"
               :key="message.id"
               :message="message"
               :agent-name="agentStore.currentAgent?.name"
@@ -44,7 +44,11 @@
               :user-name="settingsStore.settings.user.name"
               :user-avatar="settingsStore.settings.user.avatar"
               :avatar-size="settingsStore.settings.avatarSize"
+              :is-latest-assistant-message="isLatestAssistantMessage(message, index)"
               @delete="handleDeleteMessage"
+              @delete-with-below="handleDeleteWithBelow"
+              @regenerate="handleRegenerate"
+              ref="messageRefs"
             />
           </template>
           <div v-else class="empty-state">
@@ -64,6 +68,7 @@
         <ChatInput
           :loading="isLoading"
           @send="handleSendMessage"
+          @pause="handlePause"
         />
       </div>
     </main>
@@ -94,6 +99,10 @@ const promptStore = usePromptStore()
 const showSettings = ref(false)
 const isLoading = ref(false)
 const messagesContainer = ref<HTMLElement>()
+const messageRefs = ref<InstanceType<typeof ChatMessage>[]>([])
+
+// 用于取消请求
+const abortController = ref<AbortController | null>(null)
 
 const currentMessages = computed(() => {
   if (!chatStore.currentChatId) return []
@@ -189,6 +198,9 @@ const handleSendMessage = async (content: string) => {
   isLoading.value = true
   streamingMessageId.value = null
 
+  // 创建新的 AbortController
+  abortController.value = new AbortController()
+
   try {
     const model = modelStore.getModelById(modelStore.currentModelId)
     if (!model) throw new Error('未找到模型配置')
@@ -216,7 +228,8 @@ const handleSendMessage = async (content: string) => {
         messages,
         params: modelParams,
         stream: true
-      })
+      }),
+      signal: abortController.value.signal
     })
 
     if (!response.ok) throw new Error('请求失败')
@@ -304,27 +317,198 @@ const handleSendMessage = async (content: string) => {
     scrollToBottom()
 
   } catch (error) {
-    if (streamingMessageId.value) {
-      messageStore.updateMessage(
-        streamingMessageId.value,
-        { content: `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}` }
-      )
+    if (error instanceof Error && error.name === 'AbortError') {
+      // 用户主动暂停，不显示错误
+      console.log('请求已被用户暂停')
     } else {
-      messageStore.createMessage(
-        chatStore.currentChatId,
-        'assistant' as MessageRole,
-        `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}`
-      )
+      if (streamingMessageId.value) {
+        messageStore.updateMessage(
+          streamingMessageId.value,
+          { content: `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}` }
+        )
+      } else {
+        messageStore.createMessage(
+          chatStore.currentChatId,
+          'assistant' as MessageRole,
+          `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}`
+        )
+      }
+      scrollToBottom()
     }
-    scrollToBottom()
   } finally {
+    isLoading.value = false
+    streamingMessageId.value = null
+    abortController.value = null
+  }
+}
+
+// 暂停响应
+const handlePause = () => {
+  if (abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
     isLoading.value = false
     streamingMessageId.value = null
   }
 }
 
+// 判断是否为最新的AI消息
+const isLatestAssistantMessage = (message: Message, index: number): boolean => {
+  // 找到最后一条AI消息的索引
+  let lastAssistantIndex = -1
+  for (let i = currentMessages.value.length - 1; i >= 0; i--) {
+    if (currentMessages.value[i]?.role === 'assistant') {
+      lastAssistantIndex = i
+      break
+    }
+  }
+  return index === lastAssistantIndex
+}
+
+// 删除单条消息
 const handleDeleteMessage = (messageId: string) => {
   messageStore.deleteMessage(messageId)
+}
+
+// 删除本条及以下消息
+const handleDeleteWithBelow = (messageId: string) => {
+  if (chatStore.currentChatId) {
+    messageStore.deleteMessageAndAfter(chatStore.currentChatId, messageId)
+  }
+}
+
+// 重新生成消息
+const handleRegenerate = async (messageId: string) => {
+  if (!chatStore.currentChatId || !modelStore.currentModelId) return
+
+  // 找到当前消息
+  const message = messageStore.getMessageById(messageId)
+  if (!message) return
+
+  // 找到前一条用户消息
+  const chatMessages = currentMessages.value
+  const messageIndex = chatMessages.findIndex(m => m.id === messageId)
+  if (messageIndex <= 0) return
+
+  const userMessage = chatMessages[messageIndex - 1]
+  if (userMessage?.role !== 'user') return
+
+  isLoading.value = true
+  abortController.value = new AbortController()
+
+  try {
+    const model = modelStore.getModelById(modelStore.currentModelId)
+    if (!model) throw new Error('未找到模型配置')
+
+    const agent = agentStore.currentAgent
+    const roleDescription = agent?.roleDescription || ''
+
+    // 构建消息历史（只包含当前消息之前的对话）
+    const historyBeforeUser = chatMessages.slice(0, messageIndex - 1)
+    const messages = buildMessages(userMessage.content, historyBeforeUser, roleDescription)
+
+    let modelParams = {}
+    try {
+      modelParams = JSON.parse(model.params)
+    } catch {
+      // 使用默认参数
+    }
+
+    // 使用流式请求
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiUrl: model.apiUrl,
+        apiKey: model.apiKey,
+        messages,
+        params: modelParams,
+        stream: true
+      }),
+      signal: abortController.value.signal
+    })
+
+    if (!response.ok) throw new Error('请求失败')
+
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('无法读取响应')
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let fullContent = ''
+    let meta: Record<string, any> | undefined
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        const trimmedLine = line.trim()
+        if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue
+
+        const data = trimmedLine.slice(6)
+
+        try {
+          const event = JSON.parse(data)
+
+          if (event.error) {
+            throw new Error(event.error)
+          }
+
+          if (event.content) {
+            fullContent += event.content
+          }
+
+          if (event.done) {
+            meta = event.meta
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    }
+
+    // 处理剩余缓冲区
+    if (buffer.trim()) {
+      const trimmedLine = buffer.trim()
+      if (trimmedLine.startsWith('data: ')) {
+        const data = trimmedLine.slice(6)
+        try {
+          const event = JSON.parse(data)
+          if (event.content) {
+            fullContent += event.content
+          }
+          if (event.meta) {
+            meta = event.meta
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
+      }
+    }
+
+    // 将当前内容保存为变体，然后更新为新内容
+    messageStore.addMessageVariant(messageId, message.content, message.meta)
+    messageStore.updateMessage(messageId, {
+      content: fullContent,
+      meta
+    })
+    scrollToBottom()
+
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.log('重新生成请求已被用户暂停')
+    } else {
+      console.error('重新生成失败:', error)
+    }
+  } finally {
+    isLoading.value = false
+    abortController.value = null
+  }
 }
 
 watch(currentMessages, () => {
@@ -382,7 +566,7 @@ watch(currentMessages, () => {
   }
 
   .chat-messages {
-    padding: 16px;
+    padding: 12px 4px;
   }
 }
 
@@ -430,7 +614,7 @@ watch(currentMessages, () => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px;
+  padding: 16px 8px;
 }
 
 .empty-state {

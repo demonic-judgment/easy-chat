@@ -11,9 +11,18 @@
       />
       <div class="input-actions">
         <el-button
+          v-if="loading"
+          type="danger"
+          :icon="VideoPause"
+          @click="handlePause"
+          class="pause-btn"
+        >
+          暂停
+        </el-button>
+        <el-button
+          v-else
           type="primary"
           :icon="Promotion"
-          :loading="loading"
           :disabled="!canSend"
           @click="sendMessage"
           class="send-btn"
@@ -27,7 +36,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Promotion } from '@element-plus/icons-vue'
+import { Promotion, VideoPause } from '@element-plus/icons-vue'
 
 const props = defineProps<{
   loading: boolean
@@ -35,6 +44,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   send: [message: string]
+  pause: []
 }>()
 
 const inputMessage = ref('')
@@ -54,6 +64,10 @@ const sendMessage = () => {
     emit('send', message)
     inputMessage.value = ''
   }
+}
+
+const handlePause = () => {
+  emit('pause')
 }
 </script>
 
@@ -112,6 +126,20 @@ const sendMessage = () => {
   box-shadow: none;
 }
 
+.pause-btn {
+  background: linear-gradient(135deg, #f56c6c, #e6a23c);
+  border: none;
+  border-radius: 20px;
+  padding: 10px 24px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.pause-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
+}
+
 /* 移动端适配 */
 @media screen and (max-width: 768px) {
   .chat-input-wrapper {
@@ -126,7 +154,8 @@ const sendMessage = () => {
     font-size: 16px; /* 防止 iOS 缩放 */
   }
 
-  .send-btn {
+  .send-btn,
+  .pause-btn {
     padding: 8px 20px;
     font-size: 14px;
   }

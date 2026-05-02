@@ -21,6 +21,14 @@ export interface ChatHistory {
 // 消息角色
 export type MessageRole = 'system' | 'user' | 'assistant'
 
+// 消息变体（用于重新生成功能）
+export interface MessageVariant {
+  id: string
+  content: string
+  meta?: Record<string, any>
+  createdAt: number
+}
+
 // 消息
 export interface Message {
   id: string
@@ -30,6 +38,9 @@ export interface Message {
   promptId?: string
   meta?: Record<string, any>
   createdAt: number
+  // 重新生成相关字段
+  variants?: MessageVariant[] // 所有变体
+  currentVariantIndex?: number // 当前显示的变体索引
 }
 
 // 提示词项（在模板内部使用）

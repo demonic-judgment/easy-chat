@@ -15,8 +15,45 @@
     </div>
     <div class="message-content-wrapper">
       <div class="message-header">
-        <span class="message-role">{{ roleLabel }}</span>
-        <span class="message-time">{{ formatTime }}</span>
+        <div class="header-left">
+          <span class="message-role">{{ roleLabel }}</span>
+          <span class="message-time">{{ formatTime }}</span>
+        </div>
+        <!-- 操作按钮 -->
+        <div class="message-actions">
+          <el-dropdown trigger="click" :teleported="false">
+            <el-button
+              class="action-btn"
+              :icon="MoreFilled"
+              circle
+              size="small"
+            />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleCopy">
+                  <el-icon><CopyDocument /></el-icon>
+                  <span>复制</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="startEdit">
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="showMetaDialog = true">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>查看元数据</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="handleDelete" class="delete-item">
+                  <el-icon><Delete /></el-icon>
+                  <span>删除</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleDeleteWithBelow" class="delete-item">
+                  <el-icon><DeleteFilled /></el-icon>
+                  <span>删除本条及以下</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
       </div>
       <div class="message-content">
         <!-- 编辑模式 -->
@@ -37,35 +74,49 @@
           <MarkdownRenderer :content="message.content" />
         </template>
       </div>
+
+      <!-- AI消息变体切换器（仅在最新AI消息显示） -->
+      <div v-if="!isUser && showVariantSwitcher" class="variant-switcher">
+        <el-button
+          class="variant-btn"
+          :disabled="currentVariantIndex <= 0"
+          @click="handlePrevVariant"
+        >
+          <el-icon><ArrowLeft /></el-icon>
+        </el-button>
+        <span class="variant-info">{{ currentVariantIndex + 1 }} / {{ totalVariants }}</span>
+        <el-button
+          class="variant-btn"
+          :disabled="currentVariantIndex >= totalVariants - 1"
+          @click="handleNextVariant"
+        >
+          <el-icon><ArrowRight /></el-icon>
+        </el-button>
+        <el-button
+          class="regenerate-btn"
+          :icon="RefreshRight"
+          :loading="isRegenerating"
+          size="small"
+          @click="handleRegenerate"
+        >
+          重新生成
+        </el-button>
+      </div>
     </div>
 
-    <!-- 操作按钮 -->
-    <div class="message-actions">
-      <el-dropdown trigger="click" :teleported="false">
-        <el-button
-          class="action-btn"
-          :icon="MoreFilled"
-          circle
-          size="small"
-        />
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="startEdit">
-              <el-icon><Edit /></el-icon>
-              <span>编辑</span>
-            </el-dropdown-item>
-            <el-dropdown-item @click="showMetaDialog = true">
-              <el-icon><InfoFilled /></el-icon>
-              <span>查看元数据</span>
-            </el-dropdown-item>
-            <el-dropdown-item divided @click="handleDelete" class="delete-item">
-              <el-icon><Delete /></el-icon>
-              <span>删除</span>
-            </el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </div>
+    <!-- 删除确认对话框 -->
+    <el-dialog
+      v-model="showDeleteDialog"
+      title="确认删除"
+      :width="isMobile ? '90%' : '400px'"
+      destroy-on-close
+    >
+      <p>{{ deleteDialogMessage }}</p>
+      <template #footer>
+        <el-button @click="showDeleteDialog = false">取消</el-button>
+        <el-button type="danger" @click="confirmDelete">确认删除</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 元数据对话框 -->
     <el-dialog
@@ -82,7 +133,20 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { User, ChatDotRound, MoreFilled, Edit, Delete, InfoFilled } from '@element-plus/icons-vue'
+import { 
+  User, 
+  ChatDotRound, 
+  MoreFilled, 
+  Edit, 
+  Delete, 
+  DeleteFilled,
+  InfoFilled,
+  ArrowLeft,
+  ArrowRight,
+  RefreshRight,
+  CopyDocument
+} from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import type { Message } from '@/types'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { useMessageStore } from '@/stores'
@@ -94,10 +158,13 @@ const props = defineProps<{
   userName?: string
   userAvatar?: string
   avatarSize?: number
+  isLatestAssistantMessage?: boolean
 }>()
 
 const emit = defineEmits<{
   delete: [messageId: string]
+  deleteWithBelow: [messageId: string]
+  regenerate: [messageId: string]
 }>()
 
 const messageStore = useMessageStore()
@@ -163,20 +230,107 @@ const saveEdit = () => {
   isEditing.value = false
 }
 
+// 复制功能
+const handleCopy = async () => {
+  try {
+    await navigator.clipboard.writeText(props.message.content)
+    ElMessage.success('已复制到剪贴板')
+  } catch (err) {
+    // 降级方案
+    const textarea = document.createElement('textarea')
+    textarea.value = props.message.content
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    try {
+      document.execCommand('copy')
+      ElMessage.success('已复制到剪贴板')
+    } catch {
+      ElMessage.error('复制失败')
+    }
+    document.body.removeChild(textarea)
+  }
+}
+
 // 删除功能
+const showDeleteDialog = ref(false)
+const deleteDialogMessage = ref('')
+const deleteMode = ref<'single' | 'withBelow'>('single')
+
 const handleDelete = () => {
-  emit('delete', props.message.id)
+  deleteMode.value = 'single'
+  deleteDialogMessage.value = '确定要删除这条消息吗？'
+  showDeleteDialog.value = true
+}
+
+const handleDeleteWithBelow = () => {
+  deleteMode.value = 'withBelow'
+  deleteDialogMessage.value = '确定要删除本条消息及以下的所有消息吗？此操作不可恢复。'
+  showDeleteDialog.value = true
+}
+
+const confirmDelete = () => {
+  if (deleteMode.value === 'single') {
+    emit('delete', props.message.id)
+  } else {
+    emit('deleteWithBelow', props.message.id)
+  }
+  showDeleteDialog.value = false
 }
 
 // 元数据对话框
 const showMetaDialog = ref(false)
+
+// 变体切换功能（仅AI消息）
+const isRegenerating = ref(false)
+
+const showVariantSwitcher = computed(() => {
+  return props.isLatestAssistantMessage && !isUser.value
+})
+
+const totalVariants = computed(() => {
+  return props.message.variants?.length || 0
+})
+
+const currentVariantIndex = computed(() => {
+  return props.message.currentVariantIndex ?? (totalVariants.value > 0 ? totalVariants.value - 1 : 0)
+})
+
+const handlePrevVariant = () => {
+  if (currentVariantIndex.value > 0) {
+    messageStore.switchVariant(props.message.id, currentVariantIndex.value - 1)
+  }
+}
+
+const handleNextVariant = () => {
+  if (currentVariantIndex.value < totalVariants.value - 1) {
+    messageStore.switchVariant(props.message.id, currentVariantIndex.value + 1)
+  }
+}
+
+const handleRegenerate = () => {
+  isRegenerating.value = true
+  emit('regenerate', props.message.id)
+  // 3秒后重置加载状态（实际应在父组件完成后再重置）
+  setTimeout(() => {
+    isRegenerating.value = false
+  }, 3000)
+}
+
+// 暴露方法给父组件
+defineExpose({
+  setRegenerating: (value: boolean) => {
+    isRegenerating.value = value
+  }
+})
 </script>
 
 <style scoped>
 .message-item {
   display: flex;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 8px;
+  padding: 12px 8px;
   animation: fadeIn 0.3s ease;
   position: relative;
 }
@@ -210,7 +364,7 @@ const showMetaDialog = ref(false)
 
 .message-content-wrapper {
   flex: 1;
-  max-width: calc(100% - 100px);
+  max-width: calc(100% - 50px);
 }
 
 .message-item.user-message .message-content-wrapper {
@@ -220,12 +374,22 @@ const showMetaDialog = ref(false)
 .message-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
   margin-bottom: 4px;
 }
 
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .message-item.user-message .message-header {
-  justify-content: flex-end;
+  flex-direction: row-reverse;
+}
+
+.message-item.user-message .header-left {
+  flex-direction: row-reverse;
 }
 
 .message-role {
@@ -276,15 +440,61 @@ const showMetaDialog = ref(false)
   background-color: transparent;
 }
 
+/* 变体切换器 */
+.variant-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 133, 162, 0.1);
+  border-radius: 20px;
+  width: fit-content;
+}
+
+.message-item.user-message .variant-switcher {
+  margin-left: auto;
+}
+
+.variant-btn {
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: #ff85a2;
+}
+
+.variant-btn:hover:not(:disabled) {
+  background: rgba(255, 133, 162, 0.2);
+}
+
+.variant-btn:disabled {
+  color: #ccc;
+}
+
+.variant-info {
+  font-size: 12px;
+  color: #666;
+  min-width: 40px;
+  text-align: center;
+}
+
+.regenerate-btn {
+  margin-left: 8px;
+  border-color: #ff85a2;
+  color: #ff85a2;
+}
+
+.regenerate-btn:hover {
+  background: rgba(255, 133, 162, 0.1);
+}
+
 /* 操作按钮 */
 .message-actions {
   opacity: 0;
   transition: opacity 0.2s ease;
-  align-self: flex-start;
-  margin-top: 24px;
 }
 
-.message-item:hover .message-actions {
+.message-header:hover .message-actions {
   opacity: 1;
 }
 
@@ -292,6 +502,9 @@ const showMetaDialog = ref(false)
   border: none;
   background: transparent;
   color: #999;
+  padding: 2px;
+  height: 20px;
+  width: 20px;
 }
 
 .action-btn:hover {
