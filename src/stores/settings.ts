@@ -8,7 +8,8 @@ const defaultSettings: AppSettings = {
     value: '#ffeef5',
     opacity: 1
   },
-  chatOpacity: 0.95
+  chatOpacity: 0.95,
+  avatarSize: 36
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -58,6 +59,11 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
+  const updateAvatarSize = (size: number) => {
+    settings.value.avatarSize = size
+    saveSettings()
+  }
+
   const resetSettings = () => {
     settings.value = { ...defaultSettings }
     saveSettings()
@@ -73,6 +79,7 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings,
     updateBackground,
     updateChatOpacity,
+    updateAvatarSize,
     resetSettings
   }
 })

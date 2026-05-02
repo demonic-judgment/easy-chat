@@ -132,6 +132,11 @@
             <el-form-item label="聊天区透明度">
               <el-slider v-model="chatOpacity" :min="0.5" :max="1" :step="0.05" />
             </el-form-item>
+
+            <el-form-item label="头像大小">
+              <el-slider v-model="avatarSize" :min="24" :max="64" :step="4" show-stops />
+              <div class="form-tip">聊天界面中头像的显示尺寸（像素）</div>
+            </el-form-item>
           </el-form>
 
           <el-divider />
@@ -250,6 +255,7 @@ const bgColor = ref(settingsStore.settings.background.value)
 const bgImageUrl = ref(settingsStore.settings.background.value)
 const bgOpacity = ref(settingsStore.settings.background.opacity)
 const chatOpacity = ref(settingsStore.settings.chatOpacity)
+const avatarSize = ref(settingsStore.settings.avatarSize)
 
 // 模型编辑
 const showModelDialog = ref(false)
@@ -397,6 +403,7 @@ const saveSettings = () => {
     opacity: bgOpacity.value
   })
   settingsStore.updateChatOpacity(chatOpacity.value)
+  settingsStore.updateAvatarSize(avatarSize.value)
 }
 
 const resetSettings = () => {
@@ -406,6 +413,7 @@ const resetSettings = () => {
   bgImageUrl.value = settingsStore.settings.background.value
   bgOpacity.value = settingsStore.settings.background.opacity
   chatOpacity.value = settingsStore.settings.chatOpacity
+  avatarSize.value = settingsStore.settings.avatarSize
 }
 
 const truncate = (str: string, length: number) => {

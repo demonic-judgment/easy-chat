@@ -4,6 +4,7 @@ export interface Agent {
   name: string
   roleDescription: string
   firstMessage: string
+  avatar?: string
   createdAt: number
   updatedAt: number
 }
@@ -108,4 +109,5 @@ export interface BackgroundSettings {
 export interface AppSettings {
   background: BackgroundSettings
   chatOpacity: number
+  avatarSize: number
 }

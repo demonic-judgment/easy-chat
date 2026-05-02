@@ -24,7 +24,14 @@
               :class="{ active: agentStore.currentAgentId === agent.id }"
               @click="selectAgent(agent.id)"
             >
-              <el-avatar :size="32" :icon="UserFilled" class="agent-avatar" />
+              <el-avatar
+                :size="32"
+                :icon="agent.avatar ? undefined : UserFilled"
+                :src="agent.avatar"
+                class="agent-avatar"
+              >
+                {{ agent.avatar ? undefined : agent.name.charAt(0).toUpperCase() }}
+              </el-avatar>
               <div class="agent-info">
                 <div class="agent-name">{{ agent.name }}</div>
                 <div class="agent-desc">{{ truncate(agent.roleDescription, 20) }}</div>
@@ -96,6 +103,35 @@
       destroy-on-close
     >
       <el-form :model="agentForm" label-width="80px">
+        <el-form-item label="头像">
+          <div class="avatar-upload">
+            <el-avatar
+              :size="64"
+              :icon="agentForm.avatar ? undefined : UserFilled"
+              :src="agentForm.avatar"
+              class="avatar-preview"
+            >
+              {{ agentForm.avatar ? undefined : (agentForm.name.charAt(0) || 'A').toUpperCase() }}
+            </el-avatar>
+            <div class="avatar-actions">
+              <el-input
+                v-model="agentForm.avatar"
+                placeholder="输入图片URL或上传图片"
+                clearable
+              />
+              <el-button type="primary" size="small" @click="triggerFileUpload">
+                上传图片
+              </el-button>
+              <input
+                ref="fileInput"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handleFileUpload"
+              />
+            </div>
+          </div>
+        </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="agentForm.name" placeholder="输入智能体名称" />
         </el-form-item>
@@ -148,8 +184,27 @@ const editingAgentId = ref<string | null>(null)
 const agentForm = reactive({
   name: '',
   roleDescription: '',
-  firstMessage: ''
+  firstMessage: '',
+  avatar: ''
 })
+
+const fileInput = ref<HTMLInputElement>()
+
+const triggerFileUpload = () => {
+  fileInput.value?.click()
+}
+
+const handleFileUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      agentForm.avatar = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+}
 
 const selectAgent = (id: string) => {
   agentStore.setCurrentAgent(id)
@@ -192,6 +247,7 @@ const handleCommand = (command: string, agentId: string) => {
       agentForm.name = agent.name
       agentForm.roleDescription = agent.roleDescription
       agentForm.firstMessage = agent.firstMessage
+      agentForm.avatar = agent.avatar || ''
       showAgentDialog.value = true
     }
   } else if (command === 'delete') {
@@ -218,6 +274,7 @@ const saveAgent = () => {
   agentForm.name = ''
   agentForm.roleDescription = ''
   agentForm.firstMessage = ''
+  agentForm.avatar = ''
 }
 
 const truncate = (str: string, length: number) => {
@@ -445,6 +502,25 @@ const truncate = (str: string, length: number) => {
 .chat-icon {
   font-size: 14px;
   color: #ff85a2;
+}
+
+/* 头像上传样式 */
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-preview {
+  background: linear-gradient(135deg, #ff85a2, #ff6b9d);
+  flex-shrink: 0;
+}
+
+.avatar-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .chat-title {

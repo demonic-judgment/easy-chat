@@ -10,7 +10,14 @@
         <header class="chat-header">
           <div class="chat-title">
             <template v-if="chatStore.currentChat && agentStore.currentAgent">
-              <el-avatar :size="32" :icon="UserFilled" class="header-avatar" />
+              <el-avatar
+                :size="32"
+                :icon="agentStore.currentAgent.avatar ? undefined : UserFilled"
+                :src="agentStore.currentAgent.avatar"
+                class="header-avatar"
+              >
+                {{ agentStore.currentAgent.avatar ? undefined : agentStore.currentAgent.name.charAt(0).toUpperCase() }}
+              </el-avatar>
               <span>{{ chatStore.currentChat.title }}</span>
             </template>
             <template v-else>
@@ -32,6 +39,10 @@
               v-for="message in currentMessages"
               :key="message.id"
               :message="message"
+              :agent-name="agentStore.currentAgent?.name"
+              :agent-avatar="agentStore.currentAgent?.avatar"
+              :avatar-size="settingsStore.settings.avatarSize"
+              @delete="handleDeleteMessage"
             />
           </template>
           <div v-else class="empty-state">
@@ -140,11 +151,20 @@ const buildMessages = (
     )
   }
 
-  // 默认行为：使用所有历史消息
-  return chatHistory.map(m => ({
-    role: m.role,
-    content: m.content
-  }))
+  // 默认行为：添加角色描述作为system消息，然后使用所有历史消息
+  const messages: Array<{ role: MessageRole; content: string }> = []
+  
+  if (agentRoleDescription.trim()) {
+    messages.push({ role: 'system', content: agentRoleDescription })
+  }
+  
+  for (const m of chatHistory) {
+    if (m.role !== 'system') {
+      messages.push({ role: m.role, content: m.content })
+    }
+  }
+  
+  return messages
 }
 
 const streamingMessageId = ref<string | null>(null)
@@ -288,6 +308,10 @@ const handleSendMessage = async (content: string) => {
     isLoading.value = false
     streamingMessageId.value = null
   }
+}
+
+const handleDeleteMessage = (messageId: string) => {
+  messageStore.deleteMessage(messageId)
 }
 
 watch(currentMessages, () => {
