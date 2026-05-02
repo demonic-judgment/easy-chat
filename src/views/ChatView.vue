@@ -80,7 +80,7 @@ import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
 import type { MessageRole, Message } from '@/types'
-import { assembleMessages, getDefaultTemplate } from '@/utils/templateParser'
+import { assembleMessages } from '@/utils/templateParser'
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
@@ -125,45 +125,54 @@ const startNewChat = () => {
 
 /**
  * 构建发送给模型的消息数组
- * 支持自定义提示词模板
+ * 支持提示词模板
  */
 const buildMessages = (
   userContent: string,
   chatHistory: Message[],
   agentRoleDescription: string
 ): Array<{ role: MessageRole; content: string }> => {
-  // 获取当前使用的自定义提示词（如果有）
-  // 这里可以扩展为让用户选择使用哪个提示词
-  const customPrompt = promptStore.prompts[0]
+  // 获取当前智能体ID
+  const currentAgentId = agentStore.currentAgentId
 
-  if (customPrompt) {
-    // 使用自定义提示词模板组装消息
+  // 查找适用于当前智能体的模板
+  // 优先使用指定了当前智能体的模板，如果没有则使用通用的（agentIds为空的）
+  const applicableTemplates = promptStore.templates.filter(t => {
+    if (t.agentIds.length === 0) return true // 通用模板
+    if (currentAgentId && t.agentIds.includes(currentAgentId)) return true // 指定了当前智能体
+    return false
+  })
+
+  // 使用第一个适用的模板
+  const template = applicableTemplates[0]
+
+  if (template) {
+    // 使用模板组装消息
     // 过滤掉用户刚发送的消息（还未保存到 history）
     const historyWithoutCurrent = chatHistory.filter(m => m.role !== 'user' || m.content !== userContent)
 
     return assembleMessages(
-      customPrompt.template,
+      template.template,
       agentRoleDescription,
       historyWithoutCurrent,
       userContent,
-      customPrompt.content,
-      customPrompt.role
+      template.prompts // 传入模板内的提示词列表，用于解析 *自定义1* 等标签
     )
   }
 
   // 默认行为：添加角色描述作为system消息，然后使用所有历史消息
   const messages: Array<{ role: MessageRole; content: string }> = []
-  
+
   if (agentRoleDescription.trim()) {
     messages.push({ role: 'system', content: agentRoleDescription })
   }
-  
+
   for (const m of chatHistory) {
     if (m.role !== 'system') {
       messages.push({ role: m.role, content: m.content })
     }
   }
-  
+
   return messages
 }
 

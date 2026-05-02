@@ -49,40 +49,51 @@
         </div>
       </el-tab-pane>
 
-      <!-- 自定义提示词 -->
-      <el-tab-pane label="提示词" name="prompt">
+      <!-- 提示词模板 -->
+      <el-tab-pane label="提示词模板" name="template">
         <div class="settings-section">
           <div class="section-header">
-            <h4>提示词列表</h4>
-            <el-button type="primary" :icon="Plus" size="small" @click="addPrompt">
-              添加提示词
+            <h4>模板列表</h4>
+            <el-button type="primary" :icon="Plus" size="small" @click="addTemplate">
+              添加模板
             </el-button>
           </div>
 
-          <div class="prompt-list">
+          <div class="template-list">
             <el-card
-              v-for="prompt in promptStore.prompts"
-              :key="prompt.id"
-              class="prompt-card"
+              v-for="template in promptStore.templates"
+              :key="template.id"
+              class="template-card"
               shadow="hover"
             >
-              <div class="prompt-card-header">
-                <div class="prompt-name">{{ prompt.name }}</div>
-                <div class="prompt-actions">
-                  <el-tag size="small" :type="getRoleTagType(prompt.role)" class="role-tag">
-                    {{ getRoleLabel(prompt.role) }}
-                  </el-tag>
-                  <el-button :icon="Edit" circle size="small" @click="editPrompt(prompt)" />
-                  <el-button :icon="Delete" circle size="small" type="danger" @click="deletePrompt(prompt.id)" />
+              <div class="template-card-header">
+                <div class="template-name">{{ template.name }}</div>
+                <div class="template-actions">
+                  <el-button :icon="Edit" circle size="small" @click="editTemplate(template)" />
+                  <el-button :icon="Delete" circle size="small" type="danger" @click="deleteTemplate(template.id)" />
                 </div>
               </div>
-              <div class="prompt-template">{{ truncate(prompt.template, 80) }}</div>
-              <div class="prompt-content">{{ truncate(prompt.content, 60) }}</div>
+              <div class="template-agents">
+                <el-tag v-if="template.agentIds.length === 0" size="small" type="info">通用</el-tag>
+                <el-tag
+                  v-for="agentId in template.agentIds"
+                  :key="agentId"
+                  size="small"
+                  type="success"
+                  class="agent-tag"
+                >
+                  {{ getAgentNameById(agentId) }}
+                </el-tag>
+              </div>
+              <div class="template-content">{{ truncate(template.template, 80) }}</div>
+              <div class="template-prompts-count">
+                包含 {{ template.prompts.length }} 个提示词
+              </div>
             </el-card>
           </div>
 
-          <div v-if="promptStore.prompts.length === 0" class="empty-prompts">
-            暂无自定义提示词
+          <div v-if="promptStore.templates.length === 0" class="empty-templates">
+            暂无提示词模板
           </div>
 
           <el-divider />
@@ -97,9 +108,10 @@
                 <li><code>*chat_history[-1]*</code> - 最后一条消息</li>
                 <li><code>*chat_history[0-5]*</code> - 第1到第6条消息</li>
                 <li><code>*user_reply*</code> - 用户当前回复</li>
-                <li><code>*custom*</code> - 自定义提示词内容</li>
+                <li><code>*自定义1*</code> - 引用模板中名称为"自定义1"的提示词</li>
+                <li><code>*自定义2*</code> - 引用模板中名称为"自定义2"的提示词</li>
               </ul>
-              <p class="help-tip">提示：相同角色的连续消息会自动合并</p>
+              <p class="help-tip">提示：相同角色的连续消息会自动合并；可在模板中组合多个提示词，如 <code>*自定义1*</code> + <code>*自定义2*</code></p>
             </div>
           </div>
         </div>
@@ -180,16 +192,103 @@
       </template>
     </el-dialog>
 
-    <!-- 提示词编辑对话框 -->
+    <!-- 模板编辑对话框 -->
+    <el-dialog
+      v-model="showTemplateDialog"
+      :title="editingTemplateId ? '编辑模板' : '添加模板'"
+      width="800px"
+      destroy-on-close
+    >
+      <el-form :model="templateForm" label-width="100px">
+        <el-form-item label="模板名称">
+          <el-input v-model="templateForm.name" placeholder="例如：默认模板" />
+        </el-form-item>
+        <el-form-item label="适用智能体">
+          <el-select
+            v-model="templateForm.agentIds"
+            multiple
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="选择适用智能体（不选则适用所有）"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="agent in agentStore.agents"
+              :key="agent.id"
+              :label="agent.name"
+              :value="agent.id"
+            />
+          </el-select>
+          <div class="form-tip">不选择任何智能体时，该模板将适用于所有智能体</div>
+        </el-form-item>
+        <el-form-item label="模板内容">
+          <el-input
+            v-model="templateForm.template"
+            type="textarea"
+            :rows="4"
+            placeholder="例如: *role_description*\n\n*自定义1*\n\n*自定义2*\n\n*user_reply*"
+          />
+          <div class="form-tip">
+            使用 <code>*role_description*</code>, <code>*chat_history*</code>, <code>*user_reply*</code>, <code>*自定义1*</code> 等标签配置消息组装
+          </div>
+          <div v-if="templateError" class="template-error">{{ templateError }}</div>
+        </el-form-item>
+      </el-form>
+
+      <el-divider />
+
+      <!-- 提示词列表 -->
+      <div class="prompts-section">
+        <div class="section-header">
+          <h4>提示词列表</h4>
+          <el-button type="primary" :icon="Plus" size="small" @click="addPromptToCurrentTemplate">
+            添加提示词
+          </el-button>
+        </div>
+
+        <div class="prompt-items-list">
+          <el-card
+            v-for="prompt in templateForm.prompts"
+            :key="prompt.id"
+            class="prompt-item-card"
+            shadow="hover"
+          >
+            <div class="prompt-item-header">
+              <div class="prompt-item-name">{{ prompt.name }}</div>
+              <div class="prompt-item-actions">
+                <el-tag size="small" :type="getRoleTagType(prompt.role)" class="role-tag">
+                  {{ getRoleLabel(prompt.role) }}
+                </el-tag>
+                <el-button :icon="Edit" circle size="small" @click="editPromptInTemplate(prompt)" />
+                <el-button :icon="Delete" circle size="small" type="danger" @click="deletePromptFromCurrentTemplate(prompt.id)" />
+              </div>
+            </div>
+            <div class="prompt-item-content">{{ truncate(prompt.content, 60) }}</div>
+          </el-card>
+        </div>
+
+        <div v-if="templateForm.prompts.length === 0" class="empty-prompts">
+          暂无提示词，点击上方按钮添加
+        </div>
+      </div>
+
+      <template #footer>
+        <el-button @click="showTemplateDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveTemplate">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 提示词编辑对话框（在模板内） -->
     <el-dialog
       v-model="showPromptDialog"
       :title="editingPromptId ? '编辑提示词' : '添加提示词'"
-      width="600px"
+      width="500px"
       destroy-on-close
+      append-to-body
     >
       <el-form :model="promptForm" label-width="80px">
         <el-form-item label="名称">
-          <el-input v-model="promptForm.name" placeholder="提示词名称" />
+          <el-input v-model="promptForm.name" placeholder="提示词名称，如：自定义1" />
         </el-form-item>
         <el-form-item label="角色">
           <el-radio-group v-model="promptForm.role">
@@ -198,30 +297,18 @@
             <el-radio-button label="assistant">Assistant</el-radio-button>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="模板">
-          <el-input
-            v-model="promptForm.template"
-            type="textarea"
-            :rows="4"
-            placeholder="例如: *role_description*\n\n*chat_history*\n\n*custom*\n\n*user_reply*"
-          />
-          <div class="form-tip">
-            使用 <code>*role_description*</code>, <code>*chat_history*</code>, <code>*user_reply*</code>, <code>*custom*</code> 标签配置消息组装
-          </div>
-          <div v-if="templateError" class="template-error">{{ templateError }}</div>
-        </el-form-item>
         <el-form-item label="内容">
           <el-input
             v-model="promptForm.content"
             type="textarea"
             :rows="6"
-            placeholder="输入自定义提示词内容..."
+            placeholder="输入提示词内容..."
           />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showPromptDialog = false">取消</el-button>
-        <el-button type="primary" @click="savePrompt">保存</el-button>
+        <el-button type="primary" @click="savePromptToTemplate">保存</el-button>
       </template>
     </el-dialog>
   </el-drawer>
@@ -230,8 +317,8 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
-import { useModelStore, usePromptStore, useSettingsStore } from '@/stores'
-import type { ModelConfig, CustomPrompt, MessageRole } from '@/types'
+import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
+import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
 import { validateTemplate, getDefaultTemplate } from '@/utils/templateParser'
 
 const props = defineProps<{
@@ -245,6 +332,7 @@ const emit = defineEmits<{
 const modelStore = useModelStore()
 const promptStore = usePromptStore()
 const settingsStore = useSettingsStore()
+const agentStore = useAgentStore()
 
 const visible = ref(props.modelValue)
 const activeTab = ref('model')
@@ -267,15 +355,24 @@ const modelForm = reactive({
   params: ''
 })
 
-// 提示词编辑
+// 模板编辑
+const showTemplateDialog = ref(false)
+const editingTemplateId = ref<string | null>(null)
+const templateError = ref('')
+const templateForm = reactive({
+  name: '',
+  template: '',
+  agentIds: [] as string[],
+  prompts: [] as PromptItem[]
+})
+
+// 提示词编辑（在模板内）
 const showPromptDialog = ref(false)
 const editingPromptId = ref<string | null>(null)
-const templateError = ref('')
 const promptForm = reactive({
   name: '',
   content: '',
-  role: 'system' as MessageRole,
-  template: ''
+  role: 'system' as MessageRole
 })
 
 watch(() => props.modelValue, (val) => {
@@ -340,60 +437,120 @@ const deleteModel = (id: string) => {
   modelStore.deleteModel(id)
 }
 
-const addPrompt = () => {
-  editingPromptId.value = null
-  promptForm.name = ''
-  promptForm.content = ''
-  promptForm.role = 'system'
-  promptForm.template = getDefaultTemplate()
+// 模板相关方法
+const addTemplate = () => {
+  editingTemplateId.value = null
+  templateForm.name = ''
+  templateForm.template = getDefaultTemplate()
+  templateForm.agentIds = []
+  templateForm.prompts = []
   templateError.value = ''
-  showPromptDialog.value = true
+  showTemplateDialog.value = true
 }
 
-const editPrompt = (prompt: CustomPrompt) => {
-  editingPromptId.value = prompt.id
-  promptForm.name = prompt.name
-  promptForm.content = prompt.content
-  promptForm.role = prompt.role
-  promptForm.template = prompt.template
+const editTemplate = (template: PromptTemplate) => {
+  editingTemplateId.value = template.id
+  templateForm.name = template.name
+  templateForm.template = template.template
+  templateForm.agentIds = [...template.agentIds]
+  templateForm.prompts = [...template.prompts]
   templateError.value = ''
-  showPromptDialog.value = true
+  showTemplateDialog.value = true
 }
 
-const savePrompt = () => {
-  if (!promptForm.name.trim() || !promptForm.content.trim()) {
+const saveTemplate = () => {
+  if (!templateForm.name.trim()) {
     return
   }
 
   // 验证模板
-  const validation = validateTemplate(promptForm.template)
+  const validation = validateTemplate(templateForm.template, templateForm.prompts)
   if (!validation.valid) {
     templateError.value = validation.error || '模板格式错误'
     return
   }
   templateError.value = ''
 
-  if (editingPromptId.value) {
-    promptStore.updatePrompt(editingPromptId.value, {
-      name: promptForm.name,
-      content: promptForm.content,
-      role: promptForm.role,
-      template: promptForm.template
+  if (editingTemplateId.value) {
+    promptStore.updateTemplate(editingTemplateId.value, {
+      name: templateForm.name,
+      template: templateForm.template,
+      agentIds: templateForm.agentIds,
+      prompts: templateForm.prompts
     })
   } else {
-    promptStore.createPrompt({
+    promptStore.createTemplate({
+      name: templateForm.name,
+      template: templateForm.template,
+      agentIds: templateForm.agentIds,
+      prompts: templateForm.prompts
+    })
+  }
+
+  showTemplateDialog.value = false
+}
+
+const deleteTemplate = (id: string) => {
+  promptStore.deleteTemplate(id)
+}
+
+// 模板内提示词相关方法
+const addPromptToCurrentTemplate = () => {
+  editingPromptId.value = null
+  promptForm.name = ''
+  promptForm.content = ''
+  promptForm.role = 'system'
+  showPromptDialog.value = true
+}
+
+const editPromptInTemplate = (prompt: PromptItem) => {
+  editingPromptId.value = prompt.id
+  promptForm.name = prompt.name
+  promptForm.content = prompt.content
+  promptForm.role = prompt.role
+  showPromptDialog.value = true
+}
+
+const savePromptToTemplate = () => {
+  if (!promptForm.name.trim() || !promptForm.content.trim()) {
+    return
+  }
+
+  if (editingPromptId.value) {
+    // 更新现有提示词
+    const index = templateForm.prompts.findIndex(p => p.id === editingPromptId.value)
+    if (index !== -1) {
+      const existing = templateForm.prompts[index]!
+      templateForm.prompts[index] = {
+        id: existing.id,
+        name: promptForm.name,
+        content: promptForm.content,
+        role: promptForm.role,
+        createdAt: existing.createdAt,
+        updatedAt: Date.now()
+      }
+    }
+  } else {
+    // 添加新提示词
+    const newPrompt: PromptItem = {
+      id: Date.now().toString(),
       name: promptForm.name,
       content: promptForm.content,
       role: promptForm.role,
-      template: promptForm.template
-    })
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    templateForm.prompts.push(newPrompt)
   }
 
   showPromptDialog.value = false
 }
 
-const deletePrompt = (id: string) => {
-  promptStore.deletePrompt(id)
+const deletePromptFromCurrentTemplate = (promptId: string) => {
+  const index = templateForm.prompts.findIndex(p => p.id === promptId)
+  if (index !== -1) {
+    templateForm.prompts.splice(index, 1)
+  }
 }
 
 const saveSettings = () => {
@@ -438,11 +595,21 @@ const getRoleTagType = (role: MessageRole) => {
   }
   return types[role]
 }
+
+const getAgentNameById = (agentId: string) => {
+  const agent = agentStore.getAgentById(agentId)
+  return agent?.name || '未知智能体'
+}
 </script>
 
 <style scoped>
 .settings-tabs {
   height: 100%;
+}
+
+.settings-tabs :deep(.el-tab-pane) {
+  height: calc(100vh - 120px);
+  overflow-y: auto;
 }
 
 .settings-section {
@@ -463,14 +630,14 @@ const getRoleTagType = (role: MessageRole) => {
 }
 
 .model-list,
-.prompt-list {
+.template-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
 .model-card,
-.prompt-card {
+.template-card {
   border-radius: 12px;
   transition: all 0.3s ease;
 }
@@ -480,7 +647,7 @@ const getRoleTagType = (role: MessageRole) => {
 }
 
 .model-card-header,
-.prompt-card-header {
+.template-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -488,14 +655,14 @@ const getRoleTagType = (role: MessageRole) => {
 }
 
 .model-name,
-.prompt-name {
+.template-name {
   font-size: 15px;
   font-weight: 500;
   color: #333;
 }
 
 .model-actions,
-.prompt-actions {
+.template-actions {
   display: flex;
   gap: 8px;
 }
@@ -520,21 +687,30 @@ const getRoleTagType = (role: MessageRole) => {
   word-break: break-all;
 }
 
-.prompt-template {
+.template-agents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.agent-tag {
+  margin-right: 4px;
+}
+
+.template-content {
   font-size: 12px;
   color: #888;
   margin-bottom: 4px;
   font-family: monospace;
 }
 
-.prompt-content {
-  font-size: 13px;
-  color: #666;
-  line-height: 1.5;
-  white-space: pre-wrap;
+.template-prompts-count {
+  font-size: 12px;
+  color: #999;
 }
 
-.empty-prompts {
+.empty-templates {
   text-align: center;
   padding: 40px;
   color: #999;
@@ -587,33 +763,62 @@ const getRoleTagType = (role: MessageRole) => {
   border-radius: 4px;
   font-family: monospace;
   font-size: 12px;
-  color: #ff85a2;
 }
 
 .help-tip {
-  color: #999;
-  font-size: 12px;
-  margin-top: 8px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #f0f9ff;
+  border-radius: 6px;
+  color: #666;
 }
 
-:deep(.el-drawer__body) {
-  padding: 0;
+/* 提示词部分样式 */
+.prompts-section {
+  margin-top: 16px;
 }
 
-:deep(.el-tabs__header) {
-  margin-bottom: 0;
-  padding: 0 16px;
+.prompt-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
-:deep(.el-tabs__item) {
+.prompt-item-card {
+  border-radius: 8px;
+}
+
+.prompt-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.prompt-item-name {
   font-size: 14px;
+  font-weight: 500;
+  color: #333;
 }
 
-:deep(.el-tabs__item.is-active) {
-  color: #ff85a2;
+.prompt-item-actions {
+  display: flex;
+  gap: 8px;
 }
 
-:deep(.el-tabs__active-bar) {
-  background-color: #ff85a2;
+.prompt-item-content {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.empty-prompts {
+  text-align: center;
+  padding: 24px;
+  color: #999;
+  font-size: 13px;
 }
 </style>

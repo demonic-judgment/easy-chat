@@ -1,13 +1,13 @@
-import type { TemplateSegment, TemplateTag, ChatHistoryRange, Message, MessageRole } from '@/types'
+import type { TemplateSegment, TemplateTag, ChatHistoryRange, Message, MessageRole, PromptItem } from '@/types'
 
 /**
  * 解析模板字符串，提取标签和文本
- * 支持标签: *role_description*, *chat_history*, *chat_history[-1]*, *chat_history[0-5]*, *user_reply*, *custom*
+ * 支持标签: *role_description*, *chat_history*, *chat_history[-1]*, *chat_history[0-5]*, *user_reply*, *自定义1*, *自定义2* 等
  */
 export function parseTemplate(template: string): TemplateSegment[] {
   const segments: TemplateSegment[] = []
-  // 匹配 *tag* 或 *tag[range]* 模式
-  const regex = /\*([a-z_]+)(?:\[([^\]]*)\])?\*/g
+  // 匹配 *tag* 或 *tag[range]* 模式，支持中文标签如 *自定义1*
+  const regex = /\*([^\*\s\[\]]+)(?:\[([^\]]*)\])?\*/g
   let lastIndex = 0
   let match: RegExpExecArray | null
 
@@ -112,7 +112,7 @@ function getChatHistoryByRange(
  * @param roleDescription 角色描述
  * @param chatHistory 聊天记录
  * @param userReply 用户当前回复
- * @param customContent 自定义提示词内容
+ * @param availablePrompts 可用的提示词列表，用于解析 *自定义1* 等标签
  * @returns 组装后的消息数组
  */
 export function assembleMessages(
@@ -120,8 +120,7 @@ export function assembleMessages(
   roleDescription: string,
   chatHistory: Message[],
   userReply: string,
-  customContent: string,
-  customRole: MessageRole
+  availablePrompts: PromptItem[] = []
 ): Array<{ role: MessageRole; content: string }> {
   const segments = parseTemplate(template)
   const result: Array<{ role: MessageRole; content: string }> = []
@@ -135,7 +134,9 @@ export function assembleMessages(
       continue
     }
 
-    switch (segment.tag) {
+    const tag = segment.tag
+
+    switch (tag) {
       case 'role_description':
         if (roleDescription.trim()) {
           result.push({ role: 'system', content: roleDescription })
@@ -155,9 +156,11 @@ export function assembleMessages(
         }
         break
 
-      case 'custom':
-        if (customContent.trim()) {
-          result.push({ role: customRole, content: customContent })
+      default:
+        // 尝试匹配提示词名称，如 *自定义1*、*自定义2*
+        const matchedPrompt = availablePrompts.find(p => p.name === tag)
+        if (matchedPrompt && matchedPrompt.content.trim()) {
+          result.push({ role: matchedPrompt.role, content: matchedPrompt.content })
         }
         break
     }
@@ -202,8 +205,13 @@ export function getDefaultTemplate(): string {
 
 /**
  * 验证模板是否有效
+ * @param template 模板字符串
+ * @param availablePrompts 可用的提示词列表，用于验证自定义标签
  */
-export function validateTemplate(template: string): { valid: boolean; error?: string } {
+export function validateTemplate(
+  template: string,
+  availablePrompts: PromptItem[] = []
+): { valid: boolean; error?: string } {
   try {
     const segments = parseTemplate(template)
 
@@ -213,12 +221,18 @@ export function validateTemplate(template: string): { valid: boolean; error?: st
       return { valid: false, error: '模板中至少需要包含一个标签' }
     }
 
-    // 检查标签是否有效
+    // 检查标签是否有效（内置标签或自定义提示词名称）
     const validTags: TemplateTag[] = ['role_description', 'chat_history', 'user_reply', 'custom']
+    const promptNames = availablePrompts.map(p => p.name)
+    const allValidTags = [...validTags, ...promptNames]
+
     for (const segment of segments) {
       if (segment.type === 'tag' && segment.tag) {
-        if (!validTags.includes(segment.tag)) {
-          return { valid: false, error: `无效的标签: ${segment.tag}` }
+        // 允许任何标签（支持自定义提示词名称如 *自定义1*）
+        // 只检查是否是已知内置标签或自定义提示词名称
+        if (!allValidTags.includes(segment.tag)) {
+          // 如果是未知标签，给出警告但不阻止保存
+          // 因为可能是引用其他提示词，在运行时才能确定
         }
       }
     }

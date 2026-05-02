@@ -32,19 +32,29 @@ export interface Message {
   createdAt: number
 }
 
-// 自定义提示词
-export interface CustomPrompt {
+// 提示词项（在模板内部使用）
+export interface PromptItem {
   id: string
-  name: string
+  name: string // 如 "自定义1", "自定义2"
   content: string
   role: MessageRole
-  template: string
+  createdAt: number
+  updatedAt: number
+}
+
+// 提示词模板
+export interface PromptTemplate {
+  id: string
+  name: string // 模板名称
+  template: string // 模板内容，如 "*role_description*\n\n*自定义1*\n\n*自定义2*\n\n*user_reply*"
+  agentIds: string[] // 适用智能体ID列表，空数组表示适用所有智能体
+  prompts: PromptItem[] // 模板包含的提示词列表
   createdAt: number
   updatedAt: number
 }
 
 // 模板标签类型
-export type TemplateTag = 'role_description' | 'chat_history' | 'user_reply' | 'custom'
+export type TemplateTag = 'role_description' | 'chat_history' | 'user_reply' | 'custom' | string
 
 // 解析后的模板片段
 export interface TemplateSegment {
