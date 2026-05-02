@@ -5,7 +5,7 @@
         v-model="inputMessage"
         type="textarea"
         :rows="3"
-        placeholder="输入消息... (Shift + Enter 换行, Enter 发送)"
+        placeholder="输入消息... (Enter 换行，点击按钮发送)"
         resize="none"
         @keydown="handleKeydown"
       />
@@ -42,9 +42,9 @@ const inputMessage = ref('')
 const canSend = computed(() => inputMessage.value.trim() && !props.loading)
 
 const handleKeydown = (e: KeyboardEvent) => {
+  // 默认行为：Enter 换行，只有点击发送按钮才发送
   if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    sendMessage()
+    // 不做任何处理，让默认行为执行（换行）
   }
 }
 
