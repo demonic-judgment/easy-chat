@@ -115,9 +115,16 @@ export interface BackgroundSettings {
   opacity: number
 }
 
+// 用户设置
+export interface UserSettings {
+  name: string
+  avatar: string
+}
+
 // 应用设置
 export interface AppSettings {
   background: BackgroundSettings
   chatOpacity: number
   avatarSize: number
+  user: UserSettings
 }

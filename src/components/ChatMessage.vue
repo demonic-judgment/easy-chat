@@ -3,11 +3,14 @@
     <div class="message-avatar">
       <el-avatar
         :size="avatarSize"
-        :icon="isUser ? User : (agentAvatar ? undefined : ChatDotRound)"
-        :src="!isUser ? agentAvatar : undefined"
+        :icon="isUser ? (userAvatar ? undefined : User) : (agentAvatar ? undefined : ChatDotRound)"
+        :src="isUser ? userAvatar : agentAvatar"
         :class="avatarClass"
       >
-        {{ !isUser && agentAvatar ? undefined : (isUser ? undefined : (agentName?.charAt(0) || 'A').toUpperCase()) }}
+        {{ isUser 
+          ? (userAvatar ? undefined : (userName?.charAt(0) || '用').toUpperCase())
+          : (agentAvatar ? undefined : (agentName?.charAt(0) || 'A').toUpperCase()) 
+        }}
       </el-avatar>
     </div>
     <div class="message-content-wrapper">
@@ -88,6 +91,8 @@ const props = defineProps<{
   message: Message
   agentName?: string
   agentAvatar?: string
+  userName?: string
+  userAvatar?: string
   avatarSize?: number
 }>()
 
@@ -102,7 +107,7 @@ const isUser = computed(() => props.message.role === 'user')
 const roleLabel = computed(() => {
   switch (props.message.role) {
     case 'user':
-      return '用户'
+      return props.userName || '用户'
     case 'assistant':
       return props.agentName || 'AI助手'
     case 'system':

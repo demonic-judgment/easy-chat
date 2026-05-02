@@ -149,6 +149,42 @@
               <el-slider v-model="avatarSize" :min="24" :max="64" :step="4" show-stops />
               <div class="form-tip">聊天界面中头像的显示尺寸（像素）</div>
             </el-form-item>
+
+            <el-divider />
+
+            <h4>用户设置</h4>
+            <el-form-item label="用户头像">
+              <div class="avatar-upload">
+                <el-avatar
+                  :size="64"
+                  :icon="userAvatar ? undefined : UserFilled"
+                  :src="userAvatar"
+                  class="avatar-preview"
+                >
+                  {{ userAvatar ? undefined : (userName.charAt(0) || '用').toUpperCase() }}
+                </el-avatar>
+                <div class="avatar-actions">
+                  <el-input
+                    v-model="userAvatar"
+                    placeholder="输入图片URL或上传图片"
+                    clearable
+                  />
+                  <el-button type="primary" size="small" @click="triggerUserAvatarUpload">
+                    上传图片
+                  </el-button>
+                  <input
+                    ref="userAvatarFileInput"
+                    type="file"
+                    accept="image/*"
+                    style="display: none"
+                    @change="handleUserAvatarUpload"
+                  />
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item label="用户名称">
+              <el-input v-model="userName" placeholder="输入用户名称" />
+            </el-form-item>
           </el-form>
 
           <el-divider />
@@ -316,7 +352,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
-import { Plus, Edit, Delete } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue'
 import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
 import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
 import { validateTemplate, getDefaultTemplate } from '@/utils/templateParser'
@@ -344,6 +380,11 @@ const bgImageUrl = ref(settingsStore.settings.background.value)
 const bgOpacity = ref(settingsStore.settings.background.opacity)
 const chatOpacity = ref(settingsStore.settings.chatOpacity)
 const avatarSize = ref(settingsStore.settings.avatarSize)
+
+// 用户设置
+const userName = ref(settingsStore.settings.user.name)
+const userAvatar = ref(settingsStore.settings.user.avatar)
+const userAvatarFileInput = ref<HTMLInputElement>()
 
 // 模型编辑
 const showModelDialog = ref(false)
@@ -553,6 +594,25 @@ const deletePromptFromCurrentTemplate = (promptId: string) => {
   }
 }
 
+// 用户头像上传
+const triggerUserAvatarUpload = () => {
+  userAvatarFileInput.value?.click()
+}
+
+const handleUserAvatarUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      userAvatar.value = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+  // 清空input，允许重复选择同一文件
+  target.value = ''
+}
+
 const saveSettings = () => {
   settingsStore.updateBackground({
     type: bgType.value,
@@ -561,6 +621,10 @@ const saveSettings = () => {
   })
   settingsStore.updateChatOpacity(chatOpacity.value)
   settingsStore.updateAvatarSize(avatarSize.value)
+  settingsStore.updateUserSettings({
+    name: userName.value,
+    avatar: userAvatar.value
+  })
 }
 
 const resetSettings = () => {
@@ -571,6 +635,8 @@ const resetSettings = () => {
   bgOpacity.value = settingsStore.settings.background.opacity
   chatOpacity.value = settingsStore.settings.chatOpacity
   avatarSize.value = settingsStore.settings.avatarSize
+  userName.value = settingsStore.settings.user.name
+  userAvatar.value = settingsStore.settings.user.avatar
 }
 
 const truncate = (str: string, length: number) => {
@@ -613,7 +679,7 @@ const getAgentNameById = (agentId: string) => {
 }
 
 .settings-section {
-  padding: 16px;
+  padding: 16px 16px 80px 16px;
 }
 
 .section-header {
@@ -820,5 +886,24 @@ const getAgentNameById = (agentId: string) => {
   padding: 24px;
   color: #999;
   font-size: 13px;
+}
+
+/* 头像上传样式 */
+.avatar-upload {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar-preview {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #ff85a2, #ff6b9d);
+}
+
+.avatar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
 }
 </style>

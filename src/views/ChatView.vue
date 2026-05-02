@@ -41,6 +41,8 @@
               :message="message"
               :agent-name="agentStore.currentAgent?.name"
               :agent-avatar="agentStore.currentAgent?.avatar"
+              :user-name="settingsStore.settings.user.name"
+              :user-avatar="settingsStore.settings.user.avatar"
               :avatar-size="settingsStore.settings.avatarSize"
               @delete="handleDeleteMessage"
             />
