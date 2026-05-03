@@ -587,7 +587,8 @@ onUnmounted(() => {
 .viewer-trigger {
   position: fixed;
   right: 24px;
-  bottom: 100px;
+  top: 50%;
+  transform: translateY(-50%);
   width: 56px;
   height: 56px;
   background: linear-gradient(135deg, #ff85a2, #ff6b9d);
@@ -600,7 +601,7 @@ onUnmounted(() => {
 }
 
 .viewer-trigger:hover {
-  transform: scale(1.1);
+  transform: translateY(-50%) scale(1.1);
   box-shadow: 0 6px 20px rgba(255, 133, 162, 0.5);
 }
 
@@ -737,7 +738,6 @@ onUnmounted(() => {
 @media screen and (max-width: 768px) {
   .viewer-trigger {
     right: 16px;
-    bottom: 80px;
     width: 48px;
     height: 48px;
   }

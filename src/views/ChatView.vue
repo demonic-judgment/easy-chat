@@ -131,10 +131,21 @@ const chatMainStyle = computed(() => ({
   backgroundColor: `rgba(255, 255, 255, ${settingsStore.settings.chatOpacity})`
 }))
 
-const scrollToBottom = () => {
+// 检查用户是否在底部附近（阈值 100px）
+const isNearBottom = (): boolean => {
+  if (!messagesContainer.value) return true
+  const container = messagesContainer.value
+  const threshold = 100
+  return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
+}
+
+const scrollToBottom = (force: boolean = false) => {
   nextTick(() => {
     if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      // 只有当强制滚动或用户已经在底部附近时才滚动
+      if (force || isNearBottom()) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
     }
   })
 }
@@ -212,7 +223,7 @@ const handleSendMessage = async (content: string) => {
 
   // 先保存用户消息
   messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content)
-  scrollToBottom()
+  scrollToBottom(true) // 用户发送消息时强制滚动到底部
   isLoading.value = true
   streamingMessageId.value = null
 
