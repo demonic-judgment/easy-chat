@@ -12,6 +12,41 @@
           : (agentAvatar ? undefined : (agentName?.charAt(0) || 'A').toUpperCase()) 
         }}
       </el-avatar>
+      <!-- 用户消息的操作按钮 - 位于头像下方 -->
+      <div v-if="isUser" class="message-actions user-actions">
+        <el-dropdown trigger="click" :teleported="false">
+          <el-button
+            class="action-btn"
+            :icon="MoreFilled"
+            circle
+            size="small"
+          />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item @click="handleCopy">
+                <el-icon><CopyDocument /></el-icon>
+                <span>复制</span>
+              </el-dropdown-item>
+              <el-dropdown-item @click="startEdit">
+                <el-icon><Edit /></el-icon>
+                <span>编辑</span>
+              </el-dropdown-item>
+              <el-dropdown-item @click="showMetaDialog = true">
+                <el-icon><InfoFilled /></el-icon>
+                <span>查看元数据</span>
+              </el-dropdown-item>
+              <el-dropdown-item divided @click="handleDelete" class="delete-item">
+                <el-icon><Delete /></el-icon>
+                <span>删除</span>
+              </el-dropdown-item>
+              <el-dropdown-item @click="handleDeleteWithBelow" class="delete-item">
+                <el-icon><DeleteFilled /></el-icon>
+                <span>删除本条及以下</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </div>
     </div>
     <div class="message-content-wrapper">
       <div class="message-header">
@@ -19,8 +54,8 @@
           <span class="message-role">{{ roleLabel }}</span>
           <span class="message-time">{{ formatTime }}</span>
         </div>
-        <!-- 操作按钮 -->
-        <div class="message-actions">
+        <!-- AI消息的操作按钮 - 保持在头部 -->
+        <div v-if="!isUser" class="message-actions">
           <el-dropdown trigger="click" :teleported="false">
             <el-button
               class="action-btn"
@@ -61,8 +96,8 @@
           <el-input
             v-model="editContent"
             type="textarea"
-            :rows="3"
-            resize="none"
+            :rows="8"
+            resize="vertical"
           />
           <div class="edit-actions">
             <el-button size="small" @click="cancelEdit">取消</el-button>
@@ -446,9 +481,6 @@ defineExpose({
   align-items: center;
   gap: 8px;
   margin-top: 8px;
-  padding: 4px 8px;
-  background: rgba(255, 133, 162, 0.1);
-  border-radius: 20px;
   width: fit-content;
 }
 
@@ -493,6 +525,13 @@ defineExpose({
   opacity: 1;
 }
 
+/* 用户消息的操作按钮 - 位于头像下方 */
+.message-actions.user-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .action-btn {
   border: none;
   background: transparent;
@@ -508,6 +547,10 @@ defineExpose({
 }
 
 /* 编辑模式样式 */
+:deep(.el-textarea__inner) {
+  min-width: 500px;
+}
+
 .edit-actions {
   display: flex;
   justify-content: flex-end;
