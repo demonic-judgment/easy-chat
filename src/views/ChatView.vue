@@ -69,6 +69,7 @@
           :loading="isLoading"
           @send="handleSendMessage"
           @pause="handlePause"
+          @preview="handlePreviewRequest"
         />
       </div>
     </main>
@@ -78,6 +79,17 @@
 
     <!-- 悬浮图片查看器 -->
     <FloatingImageViewer />
+
+    <!-- 预览请求体弹窗 -->
+    <el-dialog
+      v-model="showPreviewDialog"
+      title="预览请求体"
+      width="70%"
+      :close-on-click-modal="true"
+      class="preview-dialog"
+    >
+      <pre class="preview-content">{{ previewRequestBody }}</pre>
+    </el-dialog>
   </div>
 </template>
 
@@ -104,6 +116,8 @@ const showSettings = ref(false)
 const isLoading = ref(false)
 const messagesContainer = ref<HTMLElement>()
 const messageRefs = ref<InstanceType<typeof ChatMessage>[]>([])
+const showPreviewDialog = ref(false)
+const previewRequestBody = ref<string>('')
 
 // 用于取消请求
 const abortController = ref<AbortController | null>(null)
@@ -523,6 +537,43 @@ const handleRegenerate = async (messageId: string) => {
 watch(currentMessages, () => {
   scrollToBottom()
 }, { deep: true })
+
+// 预览请求体
+const handlePreviewRequest = (content: string) => {
+  if (!chatStore.currentChatId || !modelStore.currentModelId) return
+
+  const model = modelStore.getModelById(modelStore.currentModelId)
+  if (!model) {
+    previewRequestBody.value = '未找到模型配置'
+    showPreviewDialog.value = true
+    return
+  }
+
+  const agent = agentStore.currentAgent
+  const roleDescription = agent?.roleDescription || ''
+
+  // 构建消息
+  const messages = buildMessages(content, currentMessages.value, roleDescription)
+
+  let modelParams = {}
+  try {
+    modelParams = JSON.parse(model.params)
+  } catch {
+    // 使用默认参数
+  }
+
+  // 构建请求体
+  const requestBody = {
+    apiUrl: model.apiUrl,
+    apiKey: model.apiKey ? '***' : '',
+    messages,
+    params: modelParams,
+    stream: true
+  }
+
+  previewRequestBody.value = JSON.stringify(requestBody, null, 2)
+  showPreviewDialog.value = true
+}
 </script>
 
 <style scoped>
@@ -649,5 +700,22 @@ watch(currentMessages, () => {
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 133, 162, 0.5);
+}
+
+/* 预览请求体弹窗样式 */
+.preview-dialog :deep(.el-dialog__body) {
+  padding: 20px;
+}
+
+.preview-content {
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 </style>

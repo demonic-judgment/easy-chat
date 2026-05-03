@@ -33,6 +33,11 @@ export const useModelStore = defineStore('model', () => {
     if (stored) {
       models.value = JSON.parse(stored)
     }
+    // 加载上次使用的模型ID
+    const storedCurrentModelId = localStorage.getItem('easy-chat-current-model-id')
+    if (storedCurrentModelId) {
+      currentModelId.value = storedCurrentModelId
+    }
   }
 
   const saveModels = () => {
@@ -92,6 +97,12 @@ export const useModelStore = defineStore('model', () => {
 
   const setCurrentModel = (id: string | null) => {
     currentModelId.value = id
+    // 保存到 localStorage
+    if (id) {
+      localStorage.setItem('easy-chat-current-model-id', id)
+    } else {
+      localStorage.removeItem('easy-chat-current-model-id')
+    }
   }
 
   // 初始化时加载数据
@@ -99,7 +110,7 @@ export const useModelStore = defineStore('model', () => {
 
   // 如果没有模型配置，创建一个默认的
   if (models.value.length === 0) {
-    createModel({
+    const defaultModel = createModel({
       name: '默认模型',
       apiUrl: 'https://api.openai.com/v1/chat/completions',
       apiKey: '',
@@ -109,6 +120,13 @@ export const useModelStore = defineStore('model', () => {
         model: 'gpt-3.5-turbo'
       }, null, 2)
     })
+    // 默认选中第一个模型
+    setCurrentModel(defaultModel.id)
+  } else if (!currentModelId.value || !getModelById(currentModelId.value)) {
+    // 如果没有选中的模型，或者选中的模型已不存在，默认使用第一个
+    if (models.value.length > 0) {
+      setCurrentModel(models.value[0]!.id)
+    }
   }
 
   return {

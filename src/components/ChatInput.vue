@@ -10,24 +10,33 @@
         @keydown="handleKeydown"
       />
       <div class="input-actions">
+        <template v-if="!loading">
+          <el-button
+            :icon="View"
+            :disabled="!canSend"
+            @click="handlePreview"
+            class="preview-btn"
+          >
+            预览请求体
+          </el-button>
+          <el-button
+            type="primary"
+            :icon="Promotion"
+            :disabled="!canSend"
+            @click="sendMessage"
+            class="send-btn"
+          >
+            发送
+          </el-button>
+        </template>
         <el-button
-          v-if="loading"
+          v-else
           type="danger"
           :icon="VideoPause"
           @click="handlePause"
           class="pause-btn"
         >
           暂停
-        </el-button>
-        <el-button
-          v-else
-          type="primary"
-          :icon="Promotion"
-          :disabled="!canSend"
-          @click="sendMessage"
-          class="send-btn"
-        >
-          发送
         </el-button>
       </div>
     </div>
@@ -36,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Promotion, VideoPause } from '@element-plus/icons-vue'
+import { Promotion, VideoPause, View } from '@element-plus/icons-vue'
 
 const props = defineProps<{
   loading: boolean
@@ -45,6 +54,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   send: [message: string]
   pause: []
+  preview: [message: string]
 }>()
 
 const inputMessage = ref('')
@@ -68,6 +78,13 @@ const sendMessage = () => {
 
 const handlePause = () => {
   emit('pause')
+}
+
+const handlePreview = () => {
+  const message = inputMessage.value.trim()
+  if (message) {
+    emit('preview', message)
+  }
 }
 </script>
 
@@ -140,6 +157,18 @@ const handlePause = () => {
   box-shadow: 0 4px 12px rgba(245, 108, 108, 0.4);
 }
 
+.preview-btn {
+  border-radius: 20px;
+  padding: 10px 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.preview-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4);
+}
+
 /* 移动端适配 */
 @media screen and (max-width: 768px) {
   .chat-input-wrapper {
@@ -155,8 +184,9 @@ const handlePause = () => {
   }
 
   .send-btn,
-  .pause-btn {
-    padding: 8px 20px;
+  .pause-btn,
+  .preview-btn {
+    padding: 8px 16px;
     font-size: 14px;
   }
 }

@@ -514,6 +514,7 @@ defineExpose({
   margin-left: 8px;
   border-color: #ff85a2;
   color: #ff85a2;
+  border-radius: 16px;
 }
 
 .regenerate-btn:hover {
