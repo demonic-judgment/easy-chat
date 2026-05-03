@@ -4,7 +4,7 @@
       <el-input
         v-model="inputMessage"
         type="textarea"
-        :rows="3"
+        :autosize="{ minRows: 3, maxRows: 15 }"
         placeholder="输入消息... (Enter 换行，点击按钮发送)"
         resize="none"
         @keydown="handleKeydown"

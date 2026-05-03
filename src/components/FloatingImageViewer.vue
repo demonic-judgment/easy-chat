@@ -56,19 +56,25 @@
     <el-button
       v-if="floatingImages.length === 0"
       class="viewer-trigger"
+      :class="{ 'is-dragging': buttonDragState.isDragging }"
       :icon="Picture"
       circle
       size="large"
-      @click="showUploadDialog = true"
+      :style="getButtonStyle()"
+      @mousedown="startButtonDrag"
+      @click="handleButtonClick"
     />
 
     <el-button
       v-else
       class="viewer-trigger has-images"
+      :class="{ 'is-dragging': buttonDragState.isDragging }"
       :icon="PictureFilled"
       circle
       size="large"
-      @click="showUploadDialog = true"
+      :style="getButtonStyle()"
+      @mousedown="startButtonDrag"
+      @click="handleButtonClick"
     >
       <span class="image-count">{{ floatingImages.length }}</span>
     </el-button>
@@ -190,9 +196,30 @@ interface ResizeState {
   aspectRatio: number
 }
 
+interface ButtonDragState {
+  isDragging: boolean
+  hasMoved: boolean
+  startX: number
+  startY: number
+  initialX: number
+  initialY: number
+}
+
 const floatingImages = ref<FloatingImage[]>([])
 const showUploadDialog = ref(false)
 const maxZIndex = ref(1000)
+
+// 按钮位置（使用 ref 以便响应式更新）
+const buttonPosition = ref({ x: 0, y: 50 }) // x: 0 表示右侧，y: 50 表示垂直居中百分比
+const isDraggingButton = ref(false)
+const buttonDragState = reactive<ButtonDragState>({
+  isDragging: false,
+  hasMoved: false,
+  startX: 0,
+  startY: 0,
+  initialX: 0,
+  initialY: 0
+})
 
 // 计算属性：只显示可见的图片
 const visibleImages = computed(() => {
@@ -436,19 +463,103 @@ const getContentStyle = (image: FloatingImage) => {
   }
 }
 
+// 获取按钮样式
+const getButtonStyle = () => {
+  // 如果正在拖拽，使用固定定位
+  if (buttonPosition.value.x !== 0 || buttonPosition.value.y !== 50) {
+    return {
+      position: 'fixed',
+      left: `${buttonPosition.value.x}px`,
+      top: `${buttonPosition.value.y}px`,
+      right: 'auto',
+      transform: 'none'
+    }
+  }
+  // 默认样式：右侧居中
+  return {
+    position: 'fixed',
+    right: '24px',
+    top: '50%',
+    transform: 'translateY(-50%)'
+  }
+}
+
+// 开始拖拽按钮
+const startButtonDrag = (e: MouseEvent) => {
+  // 只有左键才能拖拽
+  if (e.button !== 0) return
+
+  buttonDragState.isDragging = true
+  buttonDragState.hasMoved = false
+  buttonDragState.startX = e.clientX
+  buttonDragState.startY = e.clientY
+
+  // 如果按钮还在默认位置，先转换为像素位置
+  if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
+    const buttonEl = e.currentTarget as HTMLElement
+    const rect = buttonEl.getBoundingClientRect()
+    buttonPosition.value.x = rect.left
+    buttonPosition.value.y = rect.top
+  }
+
+  buttonDragState.initialX = buttonPosition.value.x
+  buttonDragState.initialY = buttonPosition.value.y
+}
+
+// 处理按钮拖拽移动
+const handleButtonDragMove = (e: MouseEvent) => {
+  if (buttonDragState.isDragging) {
+    const deltaX = e.clientX - buttonDragState.startX
+    const deltaY = e.clientY - buttonDragState.startY
+
+    // 如果移动距离超过阈值，标记为已移动
+    const moveThreshold = 5
+    if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
+      buttonDragState.hasMoved = true
+    }
+
+    buttonPosition.value.x = buttonDragState.initialX + deltaX
+    buttonPosition.value.y = buttonDragState.initialY + deltaY
+
+    // 限制在视窗内
+    const buttonSize = 56
+    buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
+    buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
+  }
+}
+
+// 结束按钮拖拽
+const endButtonDrag = () => {
+  buttonDragState.isDragging = false
+}
+
+// 处理按钮点击
+const handleButtonClick = (e: MouseEvent) => {
+  // 如果移动过，不触发点击
+  if (buttonDragState.hasMoved) {
+    e.stopPropagation()
+    return
+  }
+  showUploadDialog.value = true
+}
+
 // 全局鼠标事件监听
 onMounted(() => {
   document.addEventListener('mousemove', handleDragMove)
   document.addEventListener('mousemove', handleResizeMove)
+  document.addEventListener('mousemove', handleButtonDragMove)
   document.addEventListener('mouseup', endDrag)
   document.addEventListener('mouseup', endResize)
+  document.addEventListener('mouseup', endButtonDrag)
 })
 
 onUnmounted(() => {
   document.removeEventListener('mousemove', handleDragMove)
   document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mousemove', handleButtonDragMove)
   document.removeEventListener('mouseup', endDrag)
   document.removeEventListener('mouseup', endResize)
+  document.removeEventListener('mouseup', endButtonDrag)
 
   // 清理所有图片 URL
   floatingImages.value.forEach(image => {
@@ -598,11 +709,20 @@ onUnmounted(() => {
   box-shadow: 0 4px 16px rgba(255, 133, 162, 0.4);
   pointer-events: auto;
   transition: all 0.3s ease;
+  cursor: grab;
+  user-select: none;
 }
 
 .viewer-trigger:hover {
   transform: translateY(-50%) scale(1.1);
   box-shadow: 0 6px 20px rgba(255, 133, 162, 0.5);
+}
+
+.viewer-trigger.is-dragging {
+  cursor: grabbing;
+  transform: scale(1.1);
+  box-shadow: 0 8px 24px rgba(255, 133, 162, 0.6);
+  transition: none;
 }
 
 .viewer-trigger.has-images {
