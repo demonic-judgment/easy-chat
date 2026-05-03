@@ -14,7 +14,16 @@ const props = defineProps<{
 
 marked.use({
   gfm: true,
-  breaks: true
+  breaks: true,
+  renderer: {
+    code({ text, lang }: { text: string; lang?: string }) {
+      const language = lang || 'plaintext'
+      const highlighted = language !== 'plaintext'
+        ? hljs.highlight(text, { language }).value
+        : hljs.highlightAuto(text).value
+      return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
+    }
+  }
 })
 
 const renderedContent = computed(() => {
@@ -46,7 +55,6 @@ const renderedContent = computed(() => {
   margin-bottom: 12px;
 }
 
-.markdown-body :deep(ul),
 .markdown-body :deep(ol) {
   margin-top: 0;
   margin-bottom: 12px;
@@ -120,5 +128,76 @@ const renderedContent = computed(() => {
   border: none;
   border-top: 1px solid #e1e4e8;
   margin: 16px 0;
+}
+
+/* 加粗 - 使用温暖的珊瑚色 */
+.markdown-body :deep(strong),
+.markdown-body :deep(b) {
+  font-weight: 600;
+  color: #e85a71;
+}
+
+/* 斜体 - 使用柔和的蓝紫色 */
+.markdown-body :deep(em),
+.markdown-body :deep(i) {
+  font-style: italic;
+  color: #7b8cde;
+}
+
+/* 列表项标记 - 使用清新的青绿色 */
+.markdown-body :deep(ul) {
+  list-style: none;
+  padding-left: 20px;
+}
+
+.markdown-body :deep(ul li) {
+  position: relative;
+  padding-left: 16px;
+}
+
+.markdown-body :deep(ul li::before) {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #4ecdc4;
+  font-weight: bold;
+  font-size: 1.2em;
+  line-height: 1.2;
+}
+
+.markdown-body :deep(ol li::marker) {
+  color: #4ecdc4;
+  font-weight: 600;
+}
+
+/* 删除线 */
+.markdown-body :deep(del),
+.markdown-body :deep(s) {
+  text-decoration: line-through;
+}
+
+/* 图片 */
+.markdown-body :deep(img) {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+/* 任务列表 */
+.markdown-body :deep(input[type="checkbox"]) {
+  margin-right: 8px;
+  cursor: default;
+}
+
+.markdown-body :deep(li:has(input[type="checkbox"])) {
+  list-style: none;
+  margin-left: -20px;
+}
+
+/* 代码高亮 */
+.markdown-body :deep(.hljs) {
+  background: transparent;
+  padding: 0;
 }
 </style>
