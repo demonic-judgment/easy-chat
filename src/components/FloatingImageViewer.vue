@@ -62,6 +62,9 @@
       size="large"
       :style="getButtonStyle()"
       @mousedown="startButtonDrag"
+      @touchstart.prevent="handleButtonTouchStart"
+      @touchmove.prevent="handleButtonTouchMove"
+      @touchend.prevent="handleButtonTouchEnd"
       @click="handleButtonClick"
     />
 
@@ -74,6 +77,9 @@
       size="large"
       :style="getButtonStyle()"
       @mousedown="startButtonDrag"
+      @touchstart.prevent="handleButtonTouchStart"
+      @touchmove.prevent="handleButtonTouchMove"
+      @touchend.prevent="handleButtonTouchEnd"
       @click="handleButtonClick"
     >
       <span class="image-count">{{ floatingImages.length }}</span>
@@ -541,6 +547,58 @@ const handleButtonClick = (e: MouseEvent) => {
     return
   }
   showUploadDialog.value = true
+}
+
+// 处理触摸开始
+const handleButtonTouchStart = (e: TouchEvent) => {
+  const touch = e.touches[0]
+  if (!touch) return
+
+  buttonDragState.isDragging = true
+  buttonDragState.hasMoved = false
+  buttonDragState.startX = touch.clientX
+  buttonDragState.startY = touch.clientY
+
+  // 如果按钮还在默认位置，先转换为像素位置
+  if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
+    const buttonEl = e.currentTarget as HTMLElement
+    const rect = buttonEl.getBoundingClientRect()
+    buttonPosition.value.x = rect.left
+    buttonPosition.value.y = rect.top
+  }
+
+  buttonDragState.initialX = buttonPosition.value.x
+  buttonDragState.initialY = buttonPosition.value.y
+}
+
+// 处理触摸移动
+const handleButtonTouchMove = (e: TouchEvent) => {
+  if (buttonDragState.isDragging) {
+    const touch = e.touches[0]
+    if (!touch) return
+
+    const deltaX = touch.clientX - buttonDragState.startX
+    const deltaY = touch.clientY - buttonDragState.startY
+
+    // 如果移动距离超过阈值，标记为已移动
+    const moveThreshold = 5
+    if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
+      buttonDragState.hasMoved = true
+    }
+
+    buttonPosition.value.x = buttonDragState.initialX + deltaX
+    buttonPosition.value.y = buttonDragState.initialY + deltaY
+
+    // 限制在视窗内
+    const buttonSize = 56
+    buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
+    buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
+  }
+}
+
+// 处理触摸结束
+const handleButtonTouchEnd = () => {
+  buttonDragState.isDragging = false
 }
 
 // 全局鼠标事件监听
