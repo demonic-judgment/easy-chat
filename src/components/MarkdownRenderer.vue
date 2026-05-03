@@ -69,7 +69,9 @@ const renderedContent = computed(() => {
   background-color: #f6f8fa;
   padding: 16px;
   border-radius: 8px;
-  overflow-x: auto;
+  overflow-x: visible;
+  white-space: pre-wrap;
+  word-wrap: break-word;
   margin-bottom: 12px;
 }
 
