@@ -90,7 +90,7 @@
           </el-dropdown>
         </div>
       </div>
-      <div class="message-content">
+      <div class="message-content" :class="{ 'error-content': isErrorMessage }">
         <!-- 编辑模式 -->
         <template v-if="isEditing">
           <el-input
@@ -104,7 +104,39 @@
             <el-button size="small" type="primary" @click="saveEdit">保存</el-button>
           </div>
         </template>
-        <!-- 显示模式 -->
+        <!-- 错误消息显示 -->
+        <template v-else-if="isErrorMessage && errorInfo">
+          <div class="error-message-container">
+            <div class="error-header">
+              <el-icon class="error-icon" :style="{ color: errorInfo.color }">
+                <component :is="errorInfo.icon" />
+              </el-icon>
+              <span class="error-title" :style="{ color: errorInfo.color }">
+                {{ errorInfo.title }}
+              </span>
+            </div>
+            <div class="error-description">
+              {{ errorInfo.message }}
+            </div>
+            <div class="error-actions">
+              <el-button 
+                size="small" 
+                type="primary" 
+                :icon="RefreshRight"
+                @click="handleRegenerate"
+              >
+                重试
+              </el-button>
+              <el-button 
+                size="small" 
+                @click="showErrorDetails = true"
+              >
+                查看详情
+              </el-button>
+            </div>
+          </div>
+        </template>
+        <!-- 正常消息显示 -->
         <template v-else>
           <MarkdownRenderer :content="message.content" />
         </template>
@@ -163,6 +195,32 @@
       <pre v-if="message.meta" class="meta-content">{{ JSON.stringify(message.meta, null, 2) }}</pre>
       <el-empty v-else description="该消息暂无元数据" />
     </el-dialog>
+
+    <!-- 错误详情对话框 -->
+    <el-dialog
+      v-model="showErrorDetails"
+      title="错误详情"
+      :width="isMobile ? '90%' : '500px'"
+      destroy-on-close
+    >
+      <div v-if="errorInfo" class="error-details">
+        <div class="error-detail-item">
+          <span class="error-detail-label">错误类型:</span>
+          <el-tag :type="errorInfo.type === 'network' || errorInfo.type === 'timeout' || errorInfo.type === 'rate_limit' ? 'warning' : 'danger'" size="small">
+            {{ errorInfo.type === 'network' ? '网络错误' :
+               errorInfo.type === 'auth' ? '认证错误' :
+               errorInfo.type === 'timeout' ? '超时错误' :
+               errorInfo.type === 'rate_limit' ? '限流错误' :
+               errorInfo.type === 'server' ? '服务器错误' :
+               errorInfo.type === 'api' ? 'API错误' : '未知错误' }}
+          </el-tag>
+        </div>
+        <div class="error-detail-item">
+          <span class="error-detail-label">原始错误信息:</span>
+          <pre class="error-original">{{ message.content.replace(/^抱歉，发生了错误:\s*/, '') }}</pre>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -179,12 +237,115 @@ import {
   ArrowLeft,
   ArrowRight,
   RefreshRight,
-  CopyDocument
+  CopyDocument,
+  WarningFilled,
+  CircleCloseFilled,
+  Connection,
+  Lock,
+  Timer,
+  Cpu
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message } from '@/types'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { useMessageStore } from '@/stores'
+
+// 错误类型定义
+interface ErrorInfo {
+  type: 'network' | 'api' | 'auth' | 'timeout' | 'rate_limit' | 'server' | 'unknown'
+  title: string
+  message: string
+  icon: any
+  color: string
+}
+
+// 错误识别函数
+function parseError(errorMessage: string): ErrorInfo {
+  const msg = errorMessage.toLowerCase()
+  
+  // 网络错误
+  if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch') || 
+      msg.includes('net::') || msg.includes('无法连接') || msg.includes('网络') ||
+      msg.includes('abort') || msg.includes('aborterror')) {
+    return {
+      type: 'network',
+      title: '网络连接错误',
+      message: '无法连接到服务器，请检查网络连接后重试',
+      icon: Connection,
+      color: '#e6a23c'
+    }
+  }
+  
+  // 认证错误
+  if (msg.includes('401') || msg.includes('403') || msg.includes('unauthorized') || 
+      msg.includes('forbidden') || msg.includes('api key') || msg.includes('密钥') ||
+      msg.includes('认证') || msg.includes('鉴权') || msg.includes('auth')) {
+    return {
+      type: 'auth',
+      title: '认证失败',
+      message: 'API 密钥无效或已过期，请检查密钥配置',
+      icon: Lock,
+      color: '#f56c6c'
+    }
+  }
+  
+  // 限流错误
+  if (msg.includes('429') || msg.includes('rate limit') || msg.includes('too many requests') ||
+      msg.includes('限流') || msg.includes('请求过于频繁')) {
+    return {
+      type: 'rate_limit',
+      title: '请求过于频繁',
+      message: '已达到 API 速率限制，请稍后再试',
+      icon: Timer,
+      color: '#e6a23c'
+    }
+  }
+  
+  // 超时错误
+  if (msg.includes('timeout') || msg.includes('timed out') || msg.includes('超时')) {
+    return {
+      type: 'timeout',
+      title: '请求超时',
+      message: '服务器响应时间过长，请稍后重试',
+      icon: Timer,
+      color: '#e6a23c'
+    }
+  }
+  
+  // 服务器错误
+  if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504') ||
+      msg.includes('internal server error') || msg.includes('bad gateway') || 
+      msg.includes('service unavailable') || msg.includes('服务器错误') || msg.includes('服务不可用')) {
+    return {
+      type: 'server',
+      title: '服务器错误',
+      message: '服务器暂时不可用，请稍后再试',
+      icon: Cpu,
+      color: '#f56c6c'
+    }
+  }
+  
+  // API 错误
+  if (msg.includes('api') || msg.includes('模型') || msg.includes('model') ||
+      msg.includes('请求失败') || msg.includes('error')) {
+    return {
+      type: 'api',
+      title: 'API 错误',
+      message: errorMessage || '调用 API 时发生错误',
+      icon: WarningFilled,
+      color: '#f56c6c'
+    }
+  }
+  
+  // 未知错误
+  return {
+    type: 'unknown',
+    title: '发生错误',
+    message: errorMessage || '发生未知错误，请稍后重试',
+    icon: CircleCloseFilled,
+    color: '#909399'
+  }
+}
 
 const props = defineProps<{
   message: Message
@@ -221,6 +382,29 @@ onUnmounted(() => {
 
 const isUser = computed(() => props.message.role === 'user')
 
+// 检查消息是否为错误消息
+const isErrorMessage = computed(() => {
+  if (isUser.value) return false
+  const content = props.message.content
+  return content && (
+    content.startsWith('抱歉，发生了错误:') ||
+    content.startsWith('网络连接错误') ||
+    content.startsWith('认证失败') ||
+    content.startsWith('请求过于频繁') ||
+    content.startsWith('请求超时') ||
+    content.startsWith('服务器错误') ||
+    content.startsWith('API 错误')
+  )
+})
+
+// 解析错误信息
+const errorInfo = computed<ErrorInfo | null>(() => {
+  if (!isErrorMessage.value) return null
+  const content = props.message.content
+  const errorMsg = content.replace(/^抱歉，发生了错误:\s*/, '')
+  return parseError(errorMsg)
+})
+
 const roleLabel = computed(() => {
   switch (props.message.role) {
     case 'user':
@@ -247,6 +431,9 @@ const formatTime = computed(() => {
 // 编辑功能
 const isEditing = ref(false)
 const editContent = ref('')
+
+// 错误详情对话框
+const showErrorDetails = ref(false)
 
 const startEdit = () => {
   editContent.value = props.message.content
@@ -612,5 +799,79 @@ defineExpose({
 :deep(.delete-item:hover) {
   color: #f56c6c;
   background-color: #fef0f0;
+}
+
+/* 错误消息样式 */
+.message-content.error-content {
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+  min-width: 280px;
+}
+
+.error-message-container {
+  padding: 8px 4px;
+}
+
+.error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.error-icon {
+  font-size: 20px;
+}
+
+.error-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.error-description {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.error-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 错误详情对话框样式 */
+.error-details {
+  width: 100%;
+}
+
+.error-detail-item {
+  margin-bottom: 16px;
+}
+
+.error-detail-item:last-child {
+  margin-bottom: 0;
+}
+
+.error-detail-label {
+  display: block;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.error-original {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #333;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
 }
 </style>

@@ -181,7 +181,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import {
   Expand,
   Fold,
@@ -280,13 +280,15 @@ const deleteChat = (id: string) => {
   chatStore.deleteChat(id)
 }
 
-const handleChatCommand = (command: string, chatId: string) => {
+const handleChatCommand = async (command: string, chatId: string) => {
   if (command === 'rename') {
     const chat = chatStore.getChatById(chatId)
     if (chat) {
       editingChatId.value = chatId
-      renameForm.title = chat.title
       showRenameDialog.value = true
+      // 等待 DOM 更新后再赋值，确保输入框正常响应
+      await nextTick()
+      renameForm.title = chat.title
     }
   } else if (command === 'delete') {
     deleteChat(chatId)
@@ -301,16 +303,18 @@ const saveRename = () => {
   renameForm.title = ''
 }
 
-const handleAgentCommand = (command: string, agentId: string) => {
+const handleAgentCommand = async (command: string, agentId: string) => {
   if (command === 'edit') {
     const agent = agentStore.getAgentById(agentId)
     if (agent) {
       editingAgentId.value = agentId
+      showAgentDialog.value = true
+      // 等待 DOM 更新后再赋值，确保输入框正常响应
+      await nextTick()
       agentForm.name = agent.name
       agentForm.roleDescription = agent.roleDescription
       agentForm.firstMessage = agent.firstMessage
       agentForm.avatar = agent.avatar || ''
-      showAgentDialog.value = true
     }
   } else if (command === 'delete') {
     const chats = chatStore.getChatsByAgentId(agentId)

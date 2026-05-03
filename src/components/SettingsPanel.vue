@@ -362,7 +362,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue'
 import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
 import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
@@ -455,8 +455,11 @@ const selectModel = (id: string) => {
   modelStore.setCurrentModel(id)
 }
 
-const addModel = () => {
+const addModel = async () => {
   editingModelId.value = null
+  showModelDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   modelForm.name = ''
   modelForm.apiUrl = ''
   modelForm.apiKey = ''
@@ -465,16 +468,17 @@ const addModel = () => {
     max_tokens: 2000,
     model: 'gpt-3.5-turbo'
   }, null, 2)
-  showModelDialog.value = true
 }
 
-const editModel = (model: ModelConfig) => {
+const editModel = async (model: ModelConfig) => {
   editingModelId.value = model.id
+  showModelDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   modelForm.name = model.name
   modelForm.apiUrl = model.apiUrl
   modelForm.apiKey = model.apiKey
   modelForm.params = model.params
-  showModelDialog.value = true
 }
 
 const saveModel = () => {
@@ -506,24 +510,28 @@ const deleteModel = (id: string) => {
 }
 
 // 模板相关方法
-const addTemplate = () => {
+const addTemplate = async () => {
   editingTemplateId.value = null
+  showTemplateDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   templateForm.name = ''
   templateForm.template = getDefaultTemplate()
   templateForm.agentIds = []
   templateForm.prompts = []
   templateError.value = ''
-  showTemplateDialog.value = true
 }
 
-const editTemplate = (template: PromptTemplate) => {
+const editTemplate = async (template: PromptTemplate) => {
   editingTemplateId.value = template.id
+  showTemplateDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   templateForm.name = template.name
   templateForm.template = template.template
   templateForm.agentIds = [...template.agentIds]
   templateForm.prompts = [...template.prompts]
   templateError.value = ''
-  showTemplateDialog.value = true
 }
 
 const saveTemplate = () => {
@@ -563,20 +571,24 @@ const deleteTemplate = (id: string) => {
 }
 
 // 模板内提示词相关方法
-const addPromptToCurrentTemplate = () => {
+const addPromptToCurrentTemplate = async () => {
   editingPromptId.value = null
+  showPromptDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   promptForm.name = ''
   promptForm.content = ''
   promptForm.role = 'system'
-  showPromptDialog.value = true
 }
 
-const editPromptInTemplate = (prompt: PromptItem) => {
+const editPromptInTemplate = async (prompt: PromptItem) => {
   editingPromptId.value = prompt.id
+  showPromptDialog.value = true
+  // 等待 DOM 更新后再赋值，确保输入框正常响应
+  await nextTick()
   promptForm.name = prompt.name
   promptForm.content = prompt.content
   promptForm.role = prompt.role
-  showPromptDialog.value = true
 }
 
 const savePromptToTemplate = () => {
