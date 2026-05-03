@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev-with-port-kill.js",
+    "dev:safe": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "npm run build && wrangler dev",
     "build-only": "vite build",

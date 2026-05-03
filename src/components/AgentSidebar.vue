@@ -36,7 +36,7 @@
                 <div class="agent-name">{{ agent.name }}</div>
                 <div class="agent-desc">{{ truncate(agent.roleDescription, 20) }}</div>
               </div>
-              <el-dropdown trigger="click" @command="handleCommand($event, agent.id)">
+              <el-dropdown trigger="click" @command="handleAgentCommand($event, agent.id)">
                 <el-button :icon="More" circle size="small" class="more-btn" @click.stop />
                 <template #dropdown>
                   <el-dropdown-menu>
@@ -73,13 +73,15 @@
               >
                 <el-icon class="chat-icon"><ChatDotRound /></el-icon>
                 <span class="chat-title">{{ chat.title }}</span>
-                <el-button
-                  :icon="Delete"
-                  circle
-                  size="small"
-                  class="delete-chat-btn"
-                  @click.stop="deleteChat(chat.id)"
-                />
+                <el-dropdown trigger="click" @command="handleChatCommand($event, chat.id)">
+                  <el-button :icon="More" circle size="small" class="more-btn" @click.stop />
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                      <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
               <div v-if="chatStore.getChatsByAgentId(agentStore.currentAgentId).length === 0" class="empty-chat">
                 暂无聊天记录
@@ -94,6 +96,24 @@
     <Transition name="fade">
       <div v-if="isOpen" class="backdrop" @click="isOpen = false"></div>
     </Transition>
+
+    <!-- 聊天重命名对话框 -->
+    <el-dialog
+      v-model="showRenameDialog"
+      title="重命名聊天记录"
+      :width="isMobile ? '90%' : '400px'"
+      destroy-on-close
+    >
+      <el-form :model="renameForm" label-width="80px">
+        <el-form-item label="名称">
+          <el-input v-model="renameForm.title" placeholder="输入新的聊天记录名称" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRenameDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveRename">保存</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 智能体编辑对话框 -->
     <el-dialog
@@ -194,7 +214,13 @@ onUnmounted(() => {
 
 const isOpen = ref(false)
 const showAgentDialog = ref(false)
+const showRenameDialog = ref(false)
 const editingAgentId = ref<string | null>(null)
+const editingChatId = ref<string | null>(null)
+
+const renameForm = reactive({
+  title: ''
+})
 
 const agentForm = reactive({
   name: '',
@@ -254,7 +280,28 @@ const deleteChat = (id: string) => {
   chatStore.deleteChat(id)
 }
 
-const handleCommand = (command: string, agentId: string) => {
+const handleChatCommand = (command: string, chatId: string) => {
+  if (command === 'rename') {
+    const chat = chatStore.getChatById(chatId)
+    if (chat) {
+      editingChatId.value = chatId
+      renameForm.title = chat.title
+      showRenameDialog.value = true
+    }
+  } else if (command === 'delete') {
+    deleteChat(chatId)
+  }
+}
+
+const saveRename = () => {
+  if (!renameForm.title.trim() || !editingChatId.value) return
+  chatStore.updateChat(editingChatId.value, { title: renameForm.title.trim() })
+  showRenameDialog.value = false
+  editingChatId.value = null
+  renameForm.title = ''
+}
+
+const handleAgentCommand = (command: string, agentId: string) => {
   if (command === 'edit') {
     const agent = agentStore.getAgentById(agentId)
     if (agent) {
@@ -547,7 +594,7 @@ const truncate = (str: string, length: number) => {
   text-overflow: ellipsis;
 }
 
-.delete-chat-btn {
+.chat-item .more-btn {
   opacity: 0;
   transition: opacity 0.2s;
   border: none;
@@ -555,12 +602,12 @@ const truncate = (str: string, length: number) => {
   color: #999;
 }
 
-.chat-item:hover .delete-chat-btn {
+.chat-item:hover .more-btn {
   opacity: 1;
 }
 
-.delete-chat-btn:hover {
-  color: #f56c6c;
+.chat-item .more-btn:hover {
+  color: #ff85a2;
 }
 
 .empty-chat {
