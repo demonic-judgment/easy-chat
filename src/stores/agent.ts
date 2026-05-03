@@ -36,6 +36,7 @@ export const useAgentStore = defineStore('agent', () => {
       name: data.name,
       roleDescription: data.roleDescription,
       firstMessage: data.firstMessage,
+      avatar: data.avatar,
       createdAt: now,
       updatedAt: now
     }
@@ -52,6 +53,7 @@ export const useAgentStore = defineStore('agent', () => {
         name: data.name ?? existing.name,
         roleDescription: data.roleDescription ?? existing.roleDescription,
         firstMessage: data.firstMessage ?? existing.firstMessage,
+        avatar: data.avatar !== undefined ? data.avatar : existing.avatar,
         createdAt: existing.createdAt,
         updatedAt: Date.now()
       }

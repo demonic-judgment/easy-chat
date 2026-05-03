@@ -75,6 +75,9 @@
 
     <!-- 设置面板 -->
     <SettingsPanel v-model="showSettings" />
+
+    <!-- 悬浮图片查看器 -->
+    <FloatingImageViewer />
   </div>
 </template>
 
@@ -85,6 +88,7 @@ import AgentSidebar from '@/components/AgentSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
+import FloatingImageViewer from '@/components/FloatingImageViewer.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
 import type { MessageRole, Message } from '@/types'
 import { assembleMessages } from '@/utils/templateParser'
