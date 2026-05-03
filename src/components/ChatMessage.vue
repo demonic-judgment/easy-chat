@@ -548,8 +548,22 @@ defineExpose({
 }
 
 /* 编辑模式样式 */
+.message-content:has(.el-textarea) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+:deep(.el-textarea) {
+  width: 100%;
+  max-width: 100%;
+}
+
 :deep(.el-textarea__inner) {
-  min-width: 500px;
+  min-width: unset;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .edit-actions {
