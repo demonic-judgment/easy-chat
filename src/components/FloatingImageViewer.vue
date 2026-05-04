@@ -598,7 +598,14 @@ const handleButtonTouchMove = (e: TouchEvent) => {
 
 // 处理触摸结束
 const handleButtonTouchEnd = () => {
+  const wasDragging = buttonDragState.isDragging
+  const hadMoved = buttonDragState.hasMoved
   buttonDragState.isDragging = false
+
+  // 如果没有移动过，说明是点击，手动触发打开对话框
+  if (wasDragging && !hadMoved) {
+    showUploadDialog.value = true
+  }
 }
 
 // 全局鼠标事件监听
