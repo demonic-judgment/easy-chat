@@ -499,18 +499,23 @@ watch(avatarSize, (val) => {
 
 // 监听背景设置变化，即时预览
 watch([bgType, bgColor, bgImageUrl], ([type, color, imageUrl]) => {
-  // 当切换到颜色类型且没有设置颜色时，使用默认淡粉色
-  let finalColor = color
-  if (type === 'color' && !color) {
-    finalColor = '#ffeef5'
-    bgColor.value = finalColor
-  }
-  const value = type === 'color' ? finalColor : imageUrl
+  const value = type === 'color' ? color : imageUrl
   settingsStore.updateBackground({
     type,
     value,
     opacity: 1
   })
+})
+
+// 当切换到纯色时，如果当前值不是有效颜色，则使用默认颜色
+watch(bgType, (type) => {
+  if (type === 'color') {
+    // 检查当前值是否是有效的颜色值（以#开头或rgba等）
+    const isValidColor = bgColor.value && (bgColor.value.startsWith('#') || bgColor.value.startsWith('rgb') || bgColor.value.startsWith('hsl'))
+    if (!isValidColor) {
+      bgColor.value = '#ffeef5'
+    }
+  }
 })
 
 const selectModel = (id: string) => {
