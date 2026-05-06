@@ -139,6 +139,17 @@
         <!-- 正常消息显示 -->
         <template v-else>
           <MarkdownRenderer :content="message.content" />
+          <!-- 消息图片列表 -->
+          <div v-if="message.images && message.images.length > 0" class="message-images">
+            <div
+              v-for="(image, index) in message.images"
+              :key="index"
+              class="message-image-item"
+              @click="previewImage(image)"
+            >
+              <img :src="image.url" :alt="image.name || '图片'" />
+            </div>
+          </div>
         </template>
       </div>
 
@@ -503,6 +514,40 @@ const confirmDelete = () => {
 
 // 元数据对话框
 const showMetaDialog = ref(false)
+
+// 图片预览
+const previewImage = (image: { url: string; name?: string }) => {
+  // 使用 Element Plus 的图片预览功能
+  const img = new Image()
+  img.src = image.url
+  img.style.maxWidth = '90vw'
+  img.style.maxHeight = '90vh'
+  img.style.objectFit = 'contain'
+
+  // 创建预览容器
+  const previewContainer = document.createElement('div')
+  previewContainer.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    cursor: zoom-out;
+  `
+  previewContainer.appendChild(img)
+
+  // 点击关闭
+  previewContainer.addEventListener('click', () => {
+    document.body.removeChild(previewContainer)
+  })
+
+  document.body.appendChild(previewContainer)
+}
 
 // 变体切换功能（仅AI消息）
 const isRegenerating = ref(false)
@@ -873,5 +918,47 @@ defineExpose({
   margin: 0;
   max-height: 200px;
   overflow-y: auto;
+}
+
+/* 消息图片样式 */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.message-image-item {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 1px solid rgba(255, 133, 162, 0.2);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.message-image-item:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.message-image-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 用户消息的图片样式 */
+.message-item.user-message .message-image-item {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 移动端适配 */
+@media screen and (max-width: 768px) {
+  .message-image-item {
+    width: 80px;
+    height: 80px;
+  }
 }
 </style>

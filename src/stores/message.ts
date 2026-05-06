@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Message, MessageRole, MessageVariant } from '@/types'
+import type { Message, MessageRole, MessageVariant, ImageContent } from '@/types'
 import { generateId } from '@/utils/id'
 
 export const useMessageStore = defineStore('message', () => {
@@ -34,6 +34,7 @@ export const useMessageStore = defineStore('message', () => {
     chatHistoryId: string,
     role: MessageRole,
     content: string,
+    images?: ImageContent[],
     promptId?: string,
     meta?: Record<string, any>
   ): Message => {
@@ -42,6 +43,7 @@ export const useMessageStore = defineStore('message', () => {
       chatHistoryId,
       role,
       content,
+      images,
       promptId,
       meta,
       createdAt: Date.now()

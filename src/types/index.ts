@@ -21,10 +21,18 @@ export interface ChatHistory {
 // 消息角色
 export type MessageRole = 'system' | 'user' | 'assistant'
 
+// 图片内容
+export interface ImageContent {
+  url: string
+  name?: string
+  type?: string
+}
+
 // 消息变体（用于重新生成功能）
 export interface MessageVariant {
   id: string
   content: string
+  images?: ImageContent[]
   meta?: Record<string, any>
   createdAt: number
 }
@@ -35,6 +43,7 @@ export interface Message {
   chatHistoryId: string
   role: MessageRole
   content: string
+  images?: ImageContent[] // 图片列表
   promptId?: string
   meta?: Record<string, any>
   createdAt: number

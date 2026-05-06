@@ -102,7 +102,7 @@ import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import FloatingImageViewer from '@/components/FloatingImageViewer.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
-import type { MessageRole, Message } from '@/types'
+import type { MessageRole, Message, ImageContent } from '@/types'
 import { assembleMessages } from '@/utils/templateParser'
 
 const agentStore = useAgentStore()
@@ -165,12 +165,13 @@ const startNewChat = () => {
 
 /**
  * 构建发送给模型的消息数组
- * 支持提示词模板
+ * 支持提示词模板和图片
  */
 const buildMessages = (
   userContent: string,
   chatHistory: Message[],
-  agentRoleDescription: string
+  agentRoleDescription: string,
+  images?: ImageContent[]
 ): Array<{ role: MessageRole; content: string }> => {
   // 获取当前智能体ID
   const currentAgentId = agentStore.currentAgentId
@@ -186,6 +187,13 @@ const buildMessages = (
   // 使用第一个适用的模板
   const template = applicableTemplates[0]
 
+  // 构建用户内容（包含图片描述）
+  let finalUserContent = userContent
+  if (images && images.length > 0) {
+    const imageDesc = images.map((img, i) => `[图片${i + 1}: ${img.name || '未命名'}]`).join('\n')
+    finalUserContent = imageDesc + (userContent ? '\n\n' + userContent : '')
+  }
+
   if (template) {
     // 使用模板组装消息
     // 过滤掉用户刚发送的消息（还未保存到 history）
@@ -195,7 +203,7 @@ const buildMessages = (
       template.template,
       agentRoleDescription,
       historyWithoutCurrent,
-      userContent,
+      finalUserContent,
       template.prompts // 传入模板内的提示词列表，用于解析 *自定义1* 等标签
     )
   }
@@ -218,11 +226,11 @@ const buildMessages = (
 
 const streamingMessageId = ref<string | null>(null)
 
-const handleSendMessage = async (content: string) => {
+const handleSendMessage = async (content: string, images?: ImageContent[]) => {
   if (!chatStore.currentChatId || !modelStore.currentModelId) return
 
   // 先保存用户消息
-  messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content)
+  messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content, images)
   scrollToBottom(true) // 用户发送消息时强制滚动到底部
   isLoading.value = true
   streamingMessageId.value = null
@@ -550,7 +558,7 @@ watch(currentMessages, () => {
 }, { deep: true })
 
 // 预览请求体
-const handlePreviewRequest = (content: string) => {
+const handlePreviewRequest = (content: string, images?: ImageContent[]) => {
   if (!chatStore.currentChatId || !modelStore.currentModelId) return
 
   const model = modelStore.getModelById(modelStore.currentModelId)
@@ -563,8 +571,8 @@ const handlePreviewRequest = (content: string) => {
   const agent = agentStore.currentAgent
   const roleDescription = agent?.roleDescription || ''
 
-  // 构建消息
-  const messages = buildMessages(content, currentMessages.value, roleDescription)
+  // 构建消息（包含图片信息）
+  const messages = buildMessages(content, currentMessages.value, roleDescription, images)
 
   let modelParams = {}
   try {
