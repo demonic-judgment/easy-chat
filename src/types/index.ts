@@ -148,3 +148,19 @@ export interface AppSettings {
   avatarSize: number
   user: UserSettings
 }
+
+// 悬浮图片
+export interface FloatingImage {
+  id: string
+  url: string
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  naturalWidth: number
+  naturalHeight: number
+  aspectRatio: number
+  zIndex: number
+  isVisible: boolean
+}

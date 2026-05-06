@@ -128,10 +128,11 @@
             <img :src="image.url" :alt="image.name" />
             <div class="image-overlay">
               <el-switch
-                v-model="image.isVisible"
+                :model-value="image.isVisible"
                 size="small"
                 active-text="显示"
                 inactive-text="隐藏"
+                @update:model-value="toggleImageVisibility(image.id)"
               />
               <el-button
                 class="delete-btn"
@@ -164,21 +165,8 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { UploadFile } from 'element-plus'
-
-interface FloatingImage {
-  id: string
-  url: string
-  name: string
-  x: number
-  y: number
-  width: number
-  height: number
-  naturalWidth: number
-  naturalHeight: number
-  aspectRatio: number
-  zIndex: number
-  isVisible: boolean
-}
+import { useFloatingImageStore } from '@/stores'
+import type { FloatingImage } from '@/types'
 
 interface DragState {
   isDragging: boolean
@@ -211,9 +199,8 @@ interface ButtonDragState {
   initialY: number
 }
 
-const floatingImages = ref<FloatingImage[]>([])
+const floatingImageStore = useFloatingImageStore()
 const showUploadDialog = ref(false)
-const maxZIndex = ref(1000)
 
 // 按钮位置（使用 ref 以便响应式更新）
 const buttonPosition = ref({ x: 0, y: 50 }) // x: 0 表示右侧，y: 50 表示垂直居中百分比
@@ -228,9 +215,8 @@ const buttonDragState = reactive<ButtonDragState>({
 })
 
 // 计算属性：只显示可见的图片
-const visibleImages = computed(() => {
-  return floatingImages.value.filter(img => img.isVisible)
-})
+const visibleImages = computed(() => floatingImageStore.visibleImages())
+const floatingImages = computed(() => floatingImageStore.images)
 
 const dragState = reactive<DragState>({
   isDragging: false,
@@ -253,9 +239,6 @@ const resizeState = reactive<ResizeState>({
   initialY: 0,
   aspectRatio: 1
 })
-
-// 生成唯一ID
-const generateId = () => `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
 // 处理文件上传
 const handleFileChange = (uploadFile: UploadFile) => {
@@ -282,8 +265,7 @@ const addImage = (url: string, name: string) => {
   const initialX = 100 + offset
   const initialY = 100 + offset
 
-  const image: FloatingImage = {
-    id: generateId(),
+  floatingImageStore.addImage({
     url,
     name,
     x: initialX,
@@ -293,37 +275,23 @@ const addImage = (url: string, name: string) => {
     naturalWidth: 0,
     naturalHeight: 0,
     aspectRatio: 1,
-    zIndex: ++maxZIndex.value,
     isVisible: true
-  }
-
-  floatingImages.value.push(image)
+  })
 }
 
 // 关闭图片（彻底删除）
 const closeImage = (id: string) => {
-  const index = floatingImages.value.findIndex(img => img.id === id)
-  if (index > -1) {
-    // 释放 URL 对象
-    const img = floatingImages.value[index]!
-    if (img.url.startsWith('blob:')) {
-      URL.revokeObjectURL(img.url)
-    }
-    floatingImages.value.splice(index, 1)
-  }
+  floatingImageStore.removeImage(id)
 }
 
 // 切换图片显示/隐藏
 const toggleImageVisibility = (id: string) => {
-  const image = floatingImages.value.find(img => img.id === id)
-  if (image) {
-    image.isVisible = !image.isVisible
-  }
+  floatingImageStore.toggleVisibility(id)
 }
 
 // 将窗口置于最前
 const bringToFront = (image: FloatingImage) => {
-  image.zIndex = ++maxZIndex.value
+  floatingImageStore.bringToFront(image.id)
 }
 
 // 处理窗口鼠标按下
@@ -361,6 +329,15 @@ const handleDragMove = (e: MouseEvent) => {
 
 // 结束拖拽
 const endDrag = () => {
+  if (dragState.isDragging && dragState.imageId) {
+    const image = floatingImages.value.find(img => img.id === dragState.imageId)
+    if (image) {
+      floatingImageStore.updateImage(dragState.imageId, {
+        x: image.x,
+        y: image.y
+      })
+    }
+  }
   dragState.isDragging = false
   dragState.imageId = null
 }
@@ -436,6 +413,17 @@ const handleResizeMove = (e: MouseEvent) => {
 
 // 结束调整大小
 const endResize = () => {
+  if (resizeState.isResizing && resizeState.imageId) {
+    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
+    if (image) {
+      floatingImageStore.updateImage(resizeState.imageId, {
+        x: image.x,
+        y: image.y,
+        width: image.width,
+        height: image.height
+      })
+    }
+  }
   resizeState.isResizing = false
   resizeState.imageId = null
   resizeState.direction = ''
@@ -444,12 +432,19 @@ const endResize = () => {
 // 处理图片加载
 const handleImageLoad = (e: Event, image: FloatingImage) => {
   const img = e.target as HTMLImageElement
-  image.naturalWidth = img.naturalWidth
-  image.naturalHeight = img.naturalHeight
-  image.aspectRatio = img.naturalWidth / img.naturalHeight
+  const naturalWidth = img.naturalWidth
+  const naturalHeight = img.naturalHeight
+  const aspectRatio = img.naturalWidth / img.naturalHeight
 
   // 根据图片比例调整初始高度
-  image.height = image.width / image.aspectRatio
+  const newHeight = image.width / aspectRatio
+
+  floatingImageStore.updateImage(image.id, {
+    naturalWidth,
+    naturalHeight,
+    aspectRatio,
+    height: newHeight
+  })
 }
 
 // 获取窗口样式
@@ -625,13 +620,6 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', endDrag)
   document.removeEventListener('mouseup', endResize)
   document.removeEventListener('mouseup', endButtonDrag)
-
-  // 清理所有图片 URL
-  floatingImages.value.forEach(image => {
-    if (image.url.startsWith('blob:')) {
-      URL.revokeObjectURL(image.url)
-    }
-  })
 })
 </script>
 
