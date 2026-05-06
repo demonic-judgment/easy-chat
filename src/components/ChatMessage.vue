@@ -153,32 +153,39 @@
         </template>
       </div>
 
-      <!-- AI消息变体切换器（仅在最新AI消息显示） -->
-      <div v-if="!isUser && showVariantSwitcher" class="variant-switcher">
-        <el-button
-          class="variant-btn"
-          :disabled="currentVariantIndex <= 0"
-          @click="handlePrevVariant"
-        >
-          <el-icon><ArrowLeft /></el-icon>
-        </el-button>
-        <span class="variant-info">{{ currentVariantIndex + 1 }} / {{ totalVariants }}</span>
-        <el-button
-          class="variant-btn"
-          :disabled="currentVariantIndex >= totalVariants - 1"
-          @click="handleNextVariant"
-        >
-          <el-icon><ArrowRight /></el-icon>
-        </el-button>
-        <el-button
-          class="regenerate-btn"
-          :icon="RefreshRight"
-          :loading="isRegenerating"
-          size="small"
-          @click="handleRegenerate"
-        >
-          重新生成
-        </el-button>
+      <!-- AI消息操作区：重新生成按钮和变体切换器并排显示 -->
+      <div v-if="!isUser && (showRegenerateButton || showVariantSwitcher)" class="message-actions-container">
+        <!-- 变体切换器（仅在重新生成后显示） -->
+        <div v-if="showVariantSwitcher" class="variant-switcher">
+          <el-button
+            class="variant-btn"
+            :disabled="currentVariantIndex <= 0"
+            @click="handlePrevVariant"
+          >
+            <el-icon><ArrowLeft /></el-icon>
+          </el-button>
+          <span class="variant-info">{{ currentVariantIndex + 1 }} / {{ totalVariants }}</span>
+          <el-button
+            class="variant-btn"
+            :disabled="currentVariantIndex >= totalVariants - 1"
+            @click="handleNextVariant"
+          >
+            <el-icon><ArrowRight /></el-icon>
+          </el-button>
+        </div>
+
+        <!-- 重新生成按钮（仅在最新AI消息显示） -->
+        <div v-if="showRegenerateButton" class="regenerate-container">
+          <el-button
+            class="regenerate-btn"
+            :icon="RefreshRight"
+            :loading="isRegenerating"
+            size="small"
+            @click="handleRegenerate"
+          >
+            重新生成
+          </el-button>
+        </div>
       </div>
     </div>
 
@@ -552,8 +559,14 @@ const previewImage = (image: { url: string; name?: string }) => {
 // 变体切换功能（仅AI消息）
 const isRegenerating = ref(false)
 
-const showVariantSwitcher = computed(() => {
+// 显示重新生成按钮（仅在最新AI消息显示）
+const showRegenerateButton = computed(() => {
   return props.isLatestAssistantMessage && !isUser.value
+})
+
+// 显示变体切换器（仅在有变体时显示）
+const showVariantSwitcher = computed(() => {
+  return !isUser.value && totalVariants.value > 0
 })
 
 const totalVariants = computed(() => {
@@ -707,17 +720,30 @@ defineExpose({
   background-color: transparent;
 }
 
+/* 消息操作区容器（重新生成按钮和变体切换器并排） */
+.message-actions-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  width: fit-content;
+}
+
+.message-item.user-message .message-actions-container {
+  margin-left: auto;
+}
+
+/* 重新生成按钮容器 */
+.regenerate-container {
+  display: flex;
+  align-items: center;
+}
+
 /* 变体切换器 */
 .variant-switcher {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
-  width: fit-content;
-}
-
-.message-item.user-message .variant-switcher {
-  margin-left: auto;
 }
 
 .variant-btn {

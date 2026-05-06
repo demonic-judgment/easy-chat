@@ -147,6 +147,85 @@ export const useMessageStore = defineStore('message', () => {
     return false
   }
 
+  // 创建新的空白变体用于重新生成（将当前内容保存为变体，切换到新的空白变体）
+  const createEmptyVariant = (messageId: string): boolean => {
+    const existing = messages.value.find(m => m.id === messageId)
+    if (!existing || existing.role !== 'assistant') return false
+
+    // 如果是第一次添加变体，先将当前内容保存为第一个变体
+    let variants = existing.variants || []
+    if (variants.length === 0) {
+      const originalVariant: MessageVariant = {
+        id: generateId(),
+        content: existing.content,
+        meta: existing.meta,
+        createdAt: existing.createdAt
+      }
+      variants = [originalVariant]
+    }
+
+    // 创建新的空白变体
+    const emptyVariant: MessageVariant = {
+      id: generateId(),
+      content: '',
+      meta: undefined,
+      createdAt: Date.now()
+    }
+
+    variants.push(emptyVariant)
+
+    const updated: Message = {
+      ...existing,
+      content: '', // 清空当前显示内容
+      meta: undefined,
+      variants,
+      currentVariantIndex: variants.length - 1
+    }
+
+    const index = messages.value.findIndex(m => m.id === messageId)
+    if (index !== -1) {
+      messages.value[index] = updated
+      saveMessages()
+      return true
+    }
+    return false
+  }
+
+  // 更新当前变体的内容（用于流式更新）
+  const updateCurrentVariant = (messageId: string, content: string, meta?: Record<string, any>): boolean => {
+    const existing = messages.value.find(m => m.id === messageId)
+    if (!existing || existing.role !== 'assistant' || !existing.variants) return false
+
+    const currentIndex = existing.currentVariantIndex ?? 0
+    if (currentIndex < 0 || currentIndex >= existing.variants.length) return false
+
+    // 更新变体内容
+    const currentVariant = existing.variants[currentIndex]
+    if (!currentVariant) return false
+    
+    existing.variants[currentIndex] = {
+      id: currentVariant.id,
+      content,
+      meta,
+      createdAt: currentVariant.createdAt
+    }
+
+    // 同时更新消息的当前显示内容
+    const updated: Message = {
+      ...existing,
+      content,
+      meta
+    }
+
+    const index = messages.value.findIndex(m => m.id === messageId)
+    if (index !== -1) {
+      messages.value[index] = updated
+      saveMessages()
+      return true
+    }
+    return false
+  }
+
   // 切换消息变体
   const switchVariant = (messageId: string, variantIndex: number): boolean => {
     const existing = messages.value.find(m => m.id === messageId)
@@ -186,6 +265,8 @@ export const useMessageStore = defineStore('message', () => {
     deleteMessagesByChatId,
     deleteMessageAndAfter,
     addMessageVariant,
+    createEmptyVariant,
+    updateCurrentVariant,
     switchVariant,
     loadMessages,
     saveMessages

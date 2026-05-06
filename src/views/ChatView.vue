@@ -438,8 +438,8 @@ const handleRegenerate = async (messageId: string) => {
   isLoading.value = true
   abortController.value = new AbortController()
 
-  // 先将当前内容保存为变体
-  messageStore.addMessageVariant(messageId, message.content, message.meta)
+  // 创建新的空白变体，将当前内容保存为变体，切换到新的空白变体
+  messageStore.createEmptyVariant(messageId)
 
   try {
     const model = modelStore.getModelById(modelStore.currentModelId)
@@ -506,8 +506,8 @@ const handleRegenerate = async (messageId: string) => {
 
           if (event.content) {
             fullContent += event.content
-            // 实时更新消息内容，实现打字机效果
-            messageStore.updateMessage(messageId, { content: fullContent })
+            // 实时更新当前变体内容，实现打字机效果
+            messageStore.updateCurrentVariant(messageId, fullContent)
             scrollToBottom()
           }
 
@@ -539,11 +539,8 @@ const handleRegenerate = async (messageId: string) => {
       }
     }
 
-    // 更新最终消息内容和元数据
-    messageStore.updateMessage(messageId, {
-      content: fullContent,
-      meta
-    })
+    // 更新最终变体内容和元数据
+    messageStore.updateCurrentVariant(messageId, fullContent, meta)
     scrollToBottom()
 
   } catch (error) {
