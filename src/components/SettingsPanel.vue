@@ -140,15 +140,32 @@
             </el-form-item>
 
             <el-form-item label="背景图片" v-if="bgType === 'image'">
-              <el-input v-model="bgImageUrl" placeholder="输入图片URL" />
+              <div class="bg-image-upload">
+                <div v-if="bgImageUrl" class="bg-image-preview">
+                  <img :src="bgImageUrl" alt="背景预览" />
+                </div>
+                <div class="bg-image-actions">
+                  <el-input
+                    v-model="bgImageUrl"
+                    placeholder="输入图片URL或上传图片"
+                    clearable
+                  />
+                  <el-button type="primary" size="small" @click="triggerBgImageUpload">
+                    上传图片
+                  </el-button>
+                  <input
+                    ref="bgImageFileInput"
+                    type="file"
+                    accept="image/*"
+                    style="display: none"
+                    @change="handleBgImageUpload"
+                  />
+                </div>
+              </div>
             </el-form-item>
 
-            <el-form-item label="背景透明度">
-              <el-slider v-model="bgOpacity" :min="0" :max="1" :step="0.1" />
-            </el-form-item>
-
-            <el-form-item label="聊天区透明度">
-              <el-slider v-model="chatOpacity" :min="0.5" :max="1" :step="0.05" />
+            <el-form-item label="聊天区不透明度">
+              <el-slider v-model="chatOpacity" :min="0" :max="1" :step="0.05" />
             </el-form-item>
 
             <el-form-item label="头像大小">
@@ -404,7 +421,6 @@ const activeTab = ref('model')
 const bgType = ref(settingsStore.settings.background.type)
 const bgColor = ref(settingsStore.settings.background.value)
 const bgImageUrl = ref(settingsStore.settings.background.value)
-const bgOpacity = ref(settingsStore.settings.background.opacity)
 const chatOpacity = ref(settingsStore.settings.chatOpacity)
 const avatarSize = ref(settingsStore.settings.avatarSize)
 
@@ -412,6 +428,27 @@ const avatarSize = ref(settingsStore.settings.avatarSize)
 const userName = ref(settingsStore.settings.user.name)
 const userAvatar = ref(settingsStore.settings.user.avatar)
 const userAvatarFileInput = ref<HTMLInputElement>()
+
+// 背景图片上传
+const bgImageFileInput = ref<HTMLInputElement>()
+
+const triggerBgImageUpload = () => {
+  bgImageFileInput.value?.click()
+}
+
+const handleBgImageUpload = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      bgImageUrl.value = e.target?.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+  // 清空input，允许重复选择同一文件
+  target.value = ''
+}
 
 // 模型编辑
 const showModelDialog = ref(false)
@@ -449,6 +486,31 @@ watch(() => props.modelValue, (val) => {
 
 watch(visible, (val) => {
   emit('update:modelValue', val)
+})
+
+// 监听滑块变化，即时预览效果
+watch(chatOpacity, (val) => {
+  settingsStore.updateChatOpacity(val)
+})
+
+watch(avatarSize, (val) => {
+  settingsStore.updateAvatarSize(val)
+})
+
+// 监听背景设置变化，即时预览
+watch([bgType, bgColor, bgImageUrl], ([type, color, imageUrl]) => {
+  // 当切换到颜色类型且没有设置颜色时，使用默认淡粉色
+  let finalColor = color
+  if (type === 'color' && !color) {
+    finalColor = '#ffeef5'
+    bgColor.value = finalColor
+  }
+  const value = type === 'color' ? finalColor : imageUrl
+  settingsStore.updateBackground({
+    type,
+    value,
+    opacity: 1
+  })
 })
 
 const selectModel = (id: string) => {
@@ -653,13 +715,8 @@ const handleUserAvatarUpload = (event: Event) => {
 }
 
 const saveSettings = () => {
-  settingsStore.updateBackground({
-    type: bgType.value,
-    value: bgType.value === 'color' ? bgColor.value : bgImageUrl.value,
-    opacity: bgOpacity.value
-  })
-  settingsStore.updateChatOpacity(chatOpacity.value)
-  settingsStore.updateAvatarSize(avatarSize.value)
+  // 背景设置已在watch中实时保存
+  // 只需保存用户设置
   settingsStore.updateUserSettings({
     name: userName.value,
     avatar: userAvatar.value
@@ -671,7 +728,6 @@ const resetSettings = () => {
   bgType.value = settingsStore.settings.background.type
   bgColor.value = settingsStore.settings.background.value
   bgImageUrl.value = settingsStore.settings.background.value
-  bgOpacity.value = settingsStore.settings.background.opacity
   chatOpacity.value = settingsStore.settings.chatOpacity
   avatarSize.value = settingsStore.settings.avatarSize
   userName.value = settingsStore.settings.user.name
@@ -991,5 +1047,33 @@ const getAgentNameById = (agentId: string) => {
   flex-direction: column;
   gap: 8px;
   flex: 1;
+}
+
+/* 背景图片上传样式 */
+.bg-image-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bg-image-preview {
+  width: 100%;
+  height: 120px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  background: #f5f5f5;
+}
+
+.bg-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bg-image-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>
