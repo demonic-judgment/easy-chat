@@ -1,4 +1,4 @@
-import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings } from '@/types'
+import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingImage } from '@/types'
 
 // 数据备份结构
 export interface BackupData {
@@ -11,6 +11,7 @@ export interface BackupData {
     templates: PromptTemplate[]
     models: ModelConfig[]
     settings: AppSettings
+    floatingImages: FloatingImage[]
   }
 }
 
@@ -21,7 +22,8 @@ const STORAGE_KEYS = {
   messages: 'easy-chat-messages',
   templates: 'easy-chat-templates',
   models: 'easy-chat-models',
-  settings: 'easy-chat-settings'
+  settings: 'easy-chat-settings',
+  floatingImages: 'easy-chat-floating-images'
 }
 
 const BACKUP_VERSION = '1.0.0'
@@ -36,6 +38,7 @@ export function exportAllData(): BackupData {
   }
 
   const settings = getItem(STORAGE_KEYS.settings) || {}
+  const floatingImagesData = getItem(STORAGE_KEYS.floatingImages) || { images: [], maxZIndex: 1000 }
 
   return {
     version: BACKUP_VERSION,
@@ -46,7 +49,8 @@ export function exportAllData(): BackupData {
       messages: getItem(STORAGE_KEYS.messages) || [],
       templates: getItem(STORAGE_KEYS.templates) || [],
       models: getItem(STORAGE_KEYS.models) || [],
-      settings
+      settings,
+      floatingImages: floatingImagesData.images || []
     }
   }
 }
@@ -90,7 +94,7 @@ export function validateBackupData(data: unknown): { valid: boolean; error?: str
   }
 
   // 验证必要的数据字段
-  const requiredFields = ['agents', 'chatHistories', 'messages', 'templates', 'models', 'settings']
+  const requiredFields = ['agents', 'chatHistories', 'messages', 'templates', 'models', 'settings', 'floatingImages']
 
   for (const field of requiredFields) {
     if (!(field in backup.data)) {
@@ -130,7 +134,8 @@ export function restoreData(
       messages: { imported: 0, skipped: 0 },
       templates: { imported: 0, skipped: 0 },
       models: { imported: 0, skipped: 0 },
-      settings: { imported: false }
+      settings: { imported: false },
+      floatingImages: { imported: 0, skipped: 0 }
     }
 
     // 获取现有数据
@@ -143,7 +148,7 @@ export function restoreData(
     const processData = <T extends { id: string }>(
       newData: T[],
       existingData: T[],
-      key: 'agents' | 'chatHistories' | 'messages' | 'templates' | 'models'
+      key: 'agents' | 'chatHistories' | 'messages' | 'templates' | 'models' | 'floatingImages'
     ): T[] => {
       if (!keepExisting) {
         stats[key].imported = newData.length
@@ -196,6 +201,21 @@ export function restoreData(
       stats.settings.imported = true
     }
 
+    // 恢复悬浮图片
+    const existingFloatingImages = getExisting(STORAGE_KEYS.floatingImages).images || []
+    const floatingImages = processData(
+      backupData.data.floatingImages || [],
+      existingFloatingImages,
+      'floatingImages'
+    )
+    const maxZIndex = floatingImages.length > 0
+      ? Math.max(...floatingImages.map((img: FloatingImage) => img.zIndex), 1000)
+      : 1000
+    localStorage.setItem(STORAGE_KEYS.floatingImages, JSON.stringify({
+      images: floatingImages,
+      maxZIndex
+    }))
+
     return { success: true, stats }
   } catch (error) {
     return { success: false, error: `恢复失败: ${error instanceof Error ? error.message : '未知错误'}` }
@@ -242,6 +262,7 @@ export interface RestoreStats {
   templates: { imported: number; skipped: number }
   models: { imported: number; skipped: number }
   settings: { imported: boolean }
+  floatingImages: { imported: number; skipped: number }
 }
 
 /**
@@ -253,6 +274,7 @@ export function getDataOverview(): {
   messages: number
   templates: number
   models: number
+  floatingImages: number
 } {
   const getCount = (key: string) => {
     const stored = localStorage.getItem(key)
@@ -265,12 +287,24 @@ export function getDataOverview(): {
     }
   }
 
+  const getFloatingImagesCount = () => {
+    const stored = localStorage.getItem(STORAGE_KEYS.floatingImages)
+    if (!stored) return 0
+    try {
+      const data = JSON.parse(stored)
+      return data.images?.length || 0
+    } catch {
+      return 0
+    }
+  }
+
   return {
     agents: getCount(STORAGE_KEYS.agents),
     chatHistories: getCount(STORAGE_KEYS.chatHistories),
     messages: getCount(STORAGE_KEYS.messages),
     templates: getCount(STORAGE_KEYS.templates),
-    models: getCount(STORAGE_KEYS.models)
+    models: getCount(STORAGE_KEYS.models),
+    floatingImages: getFloatingImagesCount()
   }
 }
 

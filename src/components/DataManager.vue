@@ -24,6 +24,10 @@
           <span class="overview-label">模型配置</span>
           <span class="overview-value">{{ overview.models }}</span>
         </div>
+        <div class="overview-item">
+          <span class="overview-label">悬浮图片</span>
+          <span class="overview-value">{{ overview.floatingImages }}</span>
+        </div>
       </div>
     </div>
 
@@ -133,6 +137,13 @@
             {{ restoreStats.settings.imported ? '已恢复' : '未恢复' }}
           </span>
         </div>
+        <div class="stats-item">
+          <span class="stats-label">悬浮图片</span>
+          <span class="stats-value success">+{{ restoreStats.floatingImages.imported }}</span>
+          <span v-if="restoreStats.floatingImages.skipped > 0" class="stats-value skip">
+            (跳过 {{ restoreStats.floatingImages.skipped }})
+          </span>
+        </div>
       </div>
       <template #footer>
         <el-button type="primary" @click="handleRestoreComplete">确定</el-button>
@@ -194,7 +205,8 @@ const overview = ref({
   chatHistories: 0,
   messages: 0,
   templates: 0,
-  models: 0
+  models: 0,
+  floatingImages: 0
 })
 
 const selectedFile = ref<File | null>(null)
