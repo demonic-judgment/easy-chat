@@ -221,6 +221,11 @@ const buildMessages = (
     }
   }
 
+  // 添加用户当前发送的消息
+  if (finalUserContent.trim()) {
+    messages.push({ role: 'user', content: finalUserContent })
+  }
+
   return messages
 }
 
