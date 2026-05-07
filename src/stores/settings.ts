@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { AppSettings, BackgroundSettings, UserSettings } from '@/types'
+import type { AppSettings, BackgroundSettings } from '@/types'
 
 const defaultSettings: AppSettings = {
   background: {
@@ -8,12 +8,7 @@ const defaultSettings: AppSettings = {
     value: '#ffeef5',
     opacity: 1
   },
-  chatOpacity: 0.95,
-  avatarSize: 36,
-  user: {
-    name: '用户',
-    avatar: ''
-  }
+  chatOpacity: 0.95
 }
 
 export const useSettingsStore = defineStore('settings', () => {
@@ -63,19 +58,6 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings()
   }
 
-  const updateAvatarSize = (size: number) => {
-    settings.value.avatarSize = size
-    saveSettings()
-  }
-
-  const updateUserSettings = (user: Partial<UserSettings>) => {
-    settings.value.user = {
-      ...settings.value.user,
-      ...user
-    }
-    saveSettings()
-  }
-
   const resetSettings = () => {
     settings.value = { ...defaultSettings }
     saveSettings()
@@ -91,8 +73,6 @@ export const useSettingsStore = defineStore('settings', () => {
     saveSettings,
     updateBackground,
     updateChatOpacity,
-    updateAvatarSize,
-    updateUserSettings,
     resetSettings
   }
 })

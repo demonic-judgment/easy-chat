@@ -1,96 +1,11 @@
 <template>
   <div class="message-item" :class="{ 'user-message': isUser, 'assistant-message': !isUser }">
-    <div class="message-avatar">
-      <el-avatar
-        :size="avatarSize"
-        :icon="isUser ? (userAvatar ? undefined : User) : (agentAvatar ? undefined : ChatDotRound)"
-        :src="isUser ? userAvatar : agentAvatar"
-        :class="avatarClass"
-      >
-        {{ isUser 
-          ? (userAvatar ? undefined : (userName?.charAt(0) || '用').toUpperCase())
-          : (agentAvatar ? undefined : (agentName?.charAt(0) || 'A').toUpperCase()) 
-        }}
-      </el-avatar>
-      <!-- 用户消息的操作按钮 - 位于头像下方 -->
-      <div v-if="isUser" class="message-actions user-actions">
-        <el-dropdown trigger="click" :teleported="false">
-          <el-button
-            class="action-btn"
-            :icon="MoreFilled"
-            circle
-            size="small"
-          />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item @click="handleCopy">
-                <el-icon><CopyDocument /></el-icon>
-                <span>复制</span>
-              </el-dropdown-item>
-              <el-dropdown-item @click="startEdit">
-                <el-icon><Edit /></el-icon>
-                <span>编辑</span>
-              </el-dropdown-item>
-              <el-dropdown-item @click="showMetaDialog = true">
-                <el-icon><InfoFilled /></el-icon>
-                <span>查看元数据</span>
-              </el-dropdown-item>
-              <el-dropdown-item divided @click="handleDelete" class="delete-item">
-                <el-icon><Delete /></el-icon>
-                <span>删除</span>
-              </el-dropdown-item>
-              <el-dropdown-item @click="handleDeleteWithBelow" class="delete-item">
-                <el-icon><DeleteFilled /></el-icon>
-                <span>删除本条及以下</span>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </div>
-    </div>
     <div class="message-content-wrapper">
       <div class="message-header">
-        <div class="header-left">
-          <span class="message-role">{{ roleLabel }}</span>
-          <span class="message-time">{{ formatTime }}</span>
-        </div>
-        <!-- AI消息的操作按钮 - 保持在头部 -->
-        <div v-if="!isUser" class="message-actions">
-          <el-dropdown trigger="click" :teleported="false">
-            <el-button
-              class="action-btn"
-              :icon="MoreFilled"
-              circle
-              size="small"
-            />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item @click="handleCopy">
-                  <el-icon><CopyDocument /></el-icon>
-                  <span>复制</span>
-                </el-dropdown-item>
-                <el-dropdown-item @click="startEdit">
-                  <el-icon><Edit /></el-icon>
-                  <span>编辑</span>
-                </el-dropdown-item>
-                <el-dropdown-item @click="showMetaDialog = true">
-                  <el-icon><InfoFilled /></el-icon>
-                  <span>查看元数据</span>
-                </el-dropdown-item>
-                <el-dropdown-item divided @click="handleDelete" class="delete-item">
-                  <el-icon><Delete /></el-icon>
-                  <span>删除</span>
-                </el-dropdown-item>
-                <el-dropdown-item @click="handleDeleteWithBelow" class="delete-item">
-                  <el-icon><DeleteFilled /></el-icon>
-                  <span>删除本条及以下</span>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
+        <span class="message-time">{{ formatTime }}</span>
       </div>
-      <div class="message-content" :class="{ 'error-content': isErrorMessage }">
+      <div class="message-body">
+        <div class="message-content" :class="{ 'error-content': isErrorMessage }">
         <!-- 编辑模式 -->
         <template v-if="isEditing">
           <el-input
@@ -150,41 +65,79 @@
               <img :src="image.url" :alt="image.name || '图片'" />
             </div>
           </div>
+          <!-- AI消息操作区：重新生成按钮和变体切换器 -->
+          <div v-if="!isUser && (showRegenerateButton || showVariantSwitcher)" class="ai-actions-container">
+            <div class="ai-actions-divider"></div>
+            <div class="ai-actions-content">
+              <!-- 变体切换器（仅在重新生成后显示） -->
+              <div v-if="showVariantSwitcher" class="variant-switcher">
+                <el-button
+                  class="variant-btn"
+                  :disabled="currentVariantIndex <= 0"
+                  @click="handlePrevVariant"
+                >
+                  <el-icon><ArrowLeft /></el-icon>
+                </el-button>
+                <span class="variant-info">{{ currentVariantIndex + 1 }} / {{ totalVariants }}</span>
+                <el-button
+                  class="variant-btn"
+                  :disabled="currentVariantIndex >= totalVariants - 1"
+                  @click="handleNextVariant"
+                >
+                  <el-icon><ArrowRight /></el-icon>
+                </el-button>
+              </div>
+
+              <!-- 重新生成按钮（仅在最新AI消息显示） -->
+              <div v-if="showRegenerateButton" class="regenerate-container">
+                <el-button
+                  class="regenerate-btn"
+                  :icon="RefreshRight"
+                  :loading="isRegenerating"
+                  size="small"
+                  @click="handleRegenerate"
+                >
+                  重新生成
+                </el-button>
+              </div>
+            </div>
+          </div>
         </template>
       </div>
-
-      <!-- AI消息操作区：重新生成按钮和变体切换器并排显示 -->
-      <div v-if="!isUser && (showRegenerateButton || showVariantSwitcher)" class="message-actions-container">
-        <!-- 变体切换器（仅在重新生成后显示） -->
-        <div v-if="showVariantSwitcher" class="variant-switcher">
-          <el-button
-            class="variant-btn"
-            :disabled="currentVariantIndex <= 0"
-            @click="handlePrevVariant"
-          >
-            <el-icon><ArrowLeft /></el-icon>
-          </el-button>
-          <span class="variant-info">{{ currentVariantIndex + 1 }} / {{ totalVariants }}</span>
-          <el-button
-            class="variant-btn"
-            :disabled="currentVariantIndex >= totalVariants - 1"
-            @click="handleNextVariant"
-          >
-            <el-icon><ArrowRight /></el-icon>
-          </el-button>
-        </div>
-
-        <!-- 重新生成按钮（仅在最新AI消息显示） -->
-        <div v-if="showRegenerateButton" class="regenerate-container">
-          <el-button
-            class="regenerate-btn"
-            :icon="RefreshRight"
-            :loading="isRegenerating"
-            size="small"
-            @click="handleRegenerate"
-          >
-            重新生成
-          </el-button>
+        <!-- 消息操作按钮 -->
+        <div class="message-actions">
+          <el-dropdown trigger="click" :teleported="false">
+            <el-button
+              class="action-btn"
+              :icon="MoreFilled"
+              circle
+              size="small"
+            />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleCopy">
+                  <el-icon><CopyDocument /></el-icon>
+                  <span>复制</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="startEdit">
+                  <el-icon><Edit /></el-icon>
+                  <span>编辑</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="showMetaDialog = true">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>查看元数据</span>
+                </el-dropdown-item>
+                <el-dropdown-item divided @click="handleDelete" class="delete-item">
+                  <el-icon><Delete /></el-icon>
+                  <span>删除</span>
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleDeleteWithBelow" class="delete-item">
+                  <el-icon><DeleteFilled /></el-icon>
+                  <span>删除本条及以下</span>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </div>
     </div>
@@ -245,8 +198,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { 
-  User, 
-  ChatDotRound, 
   MoreFilled, 
   Edit, 
   Delete, 
@@ -369,9 +320,6 @@ const props = defineProps<{
   message: Message
   agentName?: string
   agentAvatar?: string
-  userName?: string
-  userAvatar?: string
-  avatarSize?: number
   isLatestAssistantMessage?: boolean
 }>()
 
@@ -422,24 +370,6 @@ const errorInfo = computed<ErrorInfo | null>(() => {
   const errorMsg = content.replace(/^抱歉，发生了错误:\s*/, '')
   return parseError(errorMsg)
 })
-
-const roleLabel = computed(() => {
-  switch (props.message.role) {
-    case 'user':
-      return props.userName || '用户'
-    case 'assistant':
-      return props.agentName || 'AI助手'
-    case 'system':
-      return '系统'
-    default:
-      return '未知'
-  }
-})
-
-const avatarClass = computed(() => ({
-  'user-avatar': isUser.value,
-  'assistant-avatar': !isUser.value
-}))
 
 const formatTime = computed(() => {
   const date = new Date(props.message.createdAt)
@@ -630,21 +560,9 @@ defineExpose({
   flex-direction: row-reverse;
 }
 
-.message-avatar {
-  flex-shrink: 0;
-}
-
-.user-avatar {
-  background: linear-gradient(135deg, #ff85a2, #ff6b9d);
-}
-
-.assistant-avatar {
-  background: linear-gradient(135deg, #a8d8ea, #7fcdbb);
-}
-
 .message-content-wrapper {
   flex: 1;
-  max-width: calc(100% - 50px);
+  max-width: 100%;
 }
 
 .message-item.user-message .message-content-wrapper {
@@ -658,24 +576,18 @@ defineExpose({
   margin-bottom: 4px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .message-item.user-message .message-header {
   flex-direction: row-reverse;
 }
 
-.message-item.user-message .header-left {
-  flex-direction: row-reverse;
+.message-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 }
 
-.message-role {
-  font-size: 13px;
-  font-weight: 500;
-  color: #666;
+.message-item.user-message .message-body {
+  justify-content: flex-end;
 }
 
 .message-time {
@@ -696,11 +608,14 @@ defineExpose({
 .message-item.user-message .message-content {
   background: linear-gradient(135deg, #ff85a2, #ff6b9d);
   color: white;
+  box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .message-item.assistant-message .message-content {
-  background: #fff;
+  background: transparent;
   color: #333;
+  box-shadow: none;
+  padding: 0;
 }
 
 .message-item.user-message .message-content :deep(.markdown-body) {
@@ -718,19 +633,6 @@ defineExpose({
 
 .message-item.user-message .message-content :deep(pre code) {
   background-color: transparent;
-}
-
-/* 消息操作区容器（重新生成按钮和变体切换器并排） */
-.message-actions-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 8px;
-  width: fit-content;
-}
-
-.message-item.user-message .message-actions-container {
-  margin-left: auto;
 }
 
 /* 重新生成按钮容器 */
@@ -779,16 +681,25 @@ defineExpose({
   background: rgba(255, 133, 162, 0.1);
 }
 
+/* AI消息操作区（在气泡内） */
+.ai-actions-container {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.ai-actions-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
 /* 操作按钮 */
 .message-actions {
   opacity: 1;
-}
-
-/* 用户消息的操作按钮 - 位于头像下方 */
-.message-actions.user-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
+  flex-shrink: 0;
+  margin-top: 4px;
 }
 
 .action-btn {

@@ -197,7 +197,11 @@ export function restoreData(
 
     // 恢复设置
     if (!keepExisting || !localStorage.getItem(STORAGE_KEYS.settings)) {
-      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(backupData.data.settings))
+      // 清理旧版本备份中的 user 和 avatarSize 字段
+      const settings = { ...backupData.data.settings }
+      delete (settings as Record<string, unknown>).user
+      delete (settings as Record<string, unknown>).avatarSize
+      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings))
       stats.settings.imported = true
     }
 

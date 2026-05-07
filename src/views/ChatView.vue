@@ -41,9 +41,6 @@
               :message="message"
               :agent-name="agentStore.currentAgent?.name"
               :agent-avatar="agentStore.currentAgent?.avatar"
-              :user-name="settingsStore.settings.user.name"
-              :user-avatar="settingsStore.settings.user.avatar"
-              :avatar-size="settingsStore.settings.avatarSize"
               :is-latest-assistant-message="isLatestAssistantMessage(message, index)"
               @delete="handleDeleteMessage"
               @delete-with-below="handleDeleteWithBelow"
@@ -624,6 +621,7 @@ const handlePreviewRequest = (content: string, images?: ImageContent[]) => {
   backdrop-filter: blur(10px);
   border-left: 1px solid rgba(255, 133, 162, 0.1);
   border-right: 1px solid rgba(255, 133, 162, 0.1);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.06), 8px 0 24px rgba(0, 0, 0, 0.06);
 }
 
 /* 移动端适配 */

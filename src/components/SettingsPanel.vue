@@ -128,7 +128,7 @@
       <el-tab-pane label="界面" name="ui">
         <div class="settings-section">
           <h4>背景设置</h4>
-          <el-form label-width="100px">
+          <el-form label-width="120px">
             <el-form-item label="背景类型">
               <el-radio-group v-model="bgType">
                 <el-radio-button label="color">纯色</el-radio-button>
@@ -141,73 +141,20 @@
             </el-form-item>
 
             <el-form-item label="背景图片" v-if="bgType === 'image'">
-              <div class="bg-image-upload">
-                <div v-if="bgImageUrl" class="bg-image-preview">
-                  <img :src="bgImageUrl" alt="背景预览" />
-                </div>
-                <div class="bg-image-actions">
-                  <el-input
-                    v-model="bgImageUrl"
-                    placeholder="输入图片URL或上传图片"
-                    clearable
-                  />
-                  <el-button type="primary" size="small" @click="triggerBgImageUpload">
-                    上传图片
-                  </el-button>
-                  <input
-                    ref="bgImageFileInput"
-                    type="file"
-                    accept="image/*"
-                    style="display: none"
-                    @change="handleBgImageUpload"
-                  />
-                </div>
-              </div>
+              <el-button type="primary" size="small" @click="triggerBgImageUpload">
+                上传图片
+              </el-button>
+              <input
+                ref="bgImageFileInput"
+                type="file"
+                accept="image/*"
+                style="display: none"
+                @change="handleBgImageUpload"
+              />
             </el-form-item>
 
             <el-form-item label="聊天区不透明度">
               <el-slider v-model="chatOpacity" :min="0" :max="1" :step="0.05" />
-            </el-form-item>
-
-            <el-form-item label="头像大小">
-              <el-slider v-model="avatarSize" :min="24" :max="64" :step="4" show-stops />
-              <div class="form-tip">聊天界面中头像的显示尺寸（像素）</div>
-            </el-form-item>
-
-            <el-divider />
-
-            <h4>用户设置</h4>
-            <el-form-item label="用户头像">
-              <div class="avatar-upload">
-                <el-avatar
-                  :size="64"
-                  :icon="userAvatar ? undefined : UserFilled"
-                  :src="userAvatar"
-                  class="avatar-preview"
-                >
-                  {{ userAvatar ? undefined : (userName.charAt(0) || '用').toUpperCase() }}
-                </el-avatar>
-                <div class="avatar-actions">
-                  <el-input
-                    v-model="userAvatar"
-                    placeholder="输入图片URL或上传图片"
-                    clearable
-                  />
-                  <el-button type="primary" size="small" @click="triggerUserAvatarUpload">
-                    上传图片
-                  </el-button>
-                  <input
-                    ref="userAvatarFileInput"
-                    type="file"
-                    accept="image/*"
-                    style="display: none"
-                    @change="handleUserAvatarUpload"
-                  />
-                </div>
-              </div>
-            </el-form-item>
-            <el-form-item label="用户名称">
-              <el-input v-model="userName" placeholder="输入用户名称" />
             </el-form-item>
           </el-form>
 
@@ -381,7 +328,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Plus, Edit, Delete, UserFilled } from '@element-plus/icons-vue'
+import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import { useModelStore, usePromptStore, useSettingsStore, useAgentStore } from '@/stores'
 import type { ModelConfig, PromptTemplate, PromptItem, MessageRole } from '@/types'
 import { validateTemplate, getDefaultTemplate } from '@/utils/templateParser'
@@ -423,12 +370,6 @@ const bgType = ref(settingsStore.settings.background.type)
 const bgColor = ref(settingsStore.settings.background.value)
 const bgImageUrl = ref(settingsStore.settings.background.value)
 const chatOpacity = ref(settingsStore.settings.chatOpacity)
-const avatarSize = ref(settingsStore.settings.avatarSize)
-
-// 用户设置
-const userName = ref(settingsStore.settings.user.name)
-const userAvatar = ref(settingsStore.settings.user.avatar)
-const userAvatarFileInput = ref<HTMLInputElement>()
 
 // 背景图片上传
 const bgImageFileInput = ref<HTMLInputElement>()
@@ -492,10 +433,6 @@ watch(visible, (val) => {
 // 监听滑块变化，即时预览效果
 watch(chatOpacity, (val) => {
   settingsStore.updateChatOpacity(val)
-})
-
-watch(avatarSize, (val) => {
-  settingsStore.updateAvatarSize(val)
 })
 
 // 监听背景设置变化，即时预览
@@ -701,32 +638,9 @@ const deletePromptFromCurrentTemplate = (promptId: string) => {
   }
 }
 
-// 用户头像上传
-const triggerUserAvatarUpload = () => {
-  userAvatarFileInput.value?.click()
-}
-
-const handleUserAvatarUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      userAvatar.value = e.target?.result as string
-    }
-    reader.readAsDataURL(file)
-  }
-  // 清空input，允许重复选择同一文件
-  target.value = ''
-}
-
 const saveSettings = () => {
   // 背景设置已在watch中实时保存
-  // 只需保存用户设置
-  settingsStore.updateUserSettings({
-    name: userName.value,
-    avatar: userAvatar.value
-  })
+  // 其他设置也已通过各自的watch实时保存
 }
 
 const resetSettings = () => {
@@ -735,9 +649,6 @@ const resetSettings = () => {
   bgColor.value = settingsStore.settings.background.value
   bgImageUrl.value = settingsStore.settings.background.value
   chatOpacity.value = settingsStore.settings.chatOpacity
-  avatarSize.value = settingsStore.settings.avatarSize
-  userName.value = settingsStore.settings.user.name
-  userAvatar.value = settingsStore.settings.user.avatar
 }
 
 const truncate = (str: string, length: number) => {
@@ -818,11 +729,6 @@ const getAgentNameById = (agentId: string) => {
   .template-actions {
     width: 100%;
     justify-content: flex-end;
-  }
-
-  .avatar-upload {
-    flex-direction: column;
-    align-items: flex-start;
   }
 }
 
@@ -1036,50 +942,4 @@ const getAgentNameById = (agentId: string) => {
   font-size: 13px;
 }
 
-/* 头像上传样式 */
-.avatar-upload {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.avatar-preview {
-  flex-shrink: 0;
-  background: linear-gradient(135deg, #ff85a2, #ff6b9d);
-}
-
-.avatar-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
-/* 背景图片上传样式 */
-.bg-image-upload {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.bg-image-preview {
-  width: 100%;
-  height: 120px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #e0e0e0;
-  background: #f5f5f5;
-}
-
-.bg-image-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.bg-image-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
 </style>
