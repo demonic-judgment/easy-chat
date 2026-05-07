@@ -608,7 +608,8 @@ defineExpose({
 .message-item.user-message .message-content {
   background: linear-gradient(135deg, #ff85a2, #ff6b9d);
   color: white;
-  box-shadow: 0 4px 12px rgba(255, 107, 157, 0.4), 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(255, 107, 157, 0.4), 0 2px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
 }
 
 .message-item.assistant-message .message-content {
