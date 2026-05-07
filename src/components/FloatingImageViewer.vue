@@ -23,6 +23,7 @@
           class="window-content"
           :style="getContentStyle(image)"
           @mousedown="startDrag($event, image)"
+          @touchstart.prevent="startDragTouch($event, image)"
         >
           <img
             :src="image.url"
@@ -36,18 +37,22 @@
         <div
           class="resize-handle resize-se"
           @mousedown="startResize($event, image, 'se')"
+          @touchstart.prevent="startResizeTouch($event, image, 'se')"
         />
         <div
           class="resize-handle resize-sw"
           @mousedown="startResize($event, image, 'sw')"
+          @touchstart.prevent="startResizeTouch($event, image, 'sw')"
         />
         <div
           class="resize-handle resize-ne"
           @mousedown="startResize($event, image, 'ne')"
+          @touchstart.prevent="startResizeTouch($event, image, 'ne')"
         />
         <div
           class="resize-handle resize-nw"
           @mousedown="startResize($event, image, 'nw')"
+          @touchstart.prevent="startResizeTouch($event, image, 'nw')"
         />
       </div>
     </TransitionGroup>
@@ -126,12 +131,10 @@
             :class="{ 'is-hidden': !image.isVisible }"
           >
             <img :src="image.url" :alt="image.name" />
-            <div class="image-overlay">
+            <div class="image-controls">
               <el-switch
                 :model-value="image.isVisible"
                 size="small"
-                active-text="显示"
-                inactive-text="隐藏"
                 @update:model-value="toggleImageVisibility(image.id)"
               />
               <el-button
@@ -258,20 +261,28 @@ const handleFileChange = (uploadFile: UploadFile) => {
   reader.readAsDataURL(file)
 }
 
+// 检测是否为移动端
+const isMobile = () => window.innerWidth <= 768
+
 // 添加图片
 const addImage = (url: string, name: string) => {
   // 计算初始位置（错开显示）
   const offset = floatingImages.value.length * 30
-  const initialX = 100 + offset
-  const initialY = 100 + offset
+
+  // 移动端使用更小的初始尺寸和更合适的位置
+  const mobile = isMobile()
+  const initialX = mobile ? 20 + offset : 100 + offset
+  const initialY = mobile ? 100 + offset : 100 + offset
+  const initialWidth = mobile ? Math.min(250, window.innerWidth - 40) : 300
+  const initialHeight = mobile ? 180 : 200
 
   floatingImageStore.addImage({
     url,
     name,
     x: initialX,
     y: initialY,
-    width: 300,
-    height: 200,
+    width: initialWidth,
+    height: initialHeight,
     naturalWidth: 0,
     naturalHeight: 0,
     aspectRatio: 1,
@@ -376,38 +387,33 @@ const handleResizeMove = (e: MouseEvent) => {
     let newY = resizeState.initialY
 
     // 根据方向计算新尺寸（保持宽高比）
-    const minSize = 100
-
     switch (resizeState.direction) {
       case 'se': // 东南角
-        newWidth = Math.max(minSize, resizeState.initialWidth + deltaX)
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
         newHeight = newWidth / resizeState.aspectRatio
         break
       case 'sw': // 西南角
-        newWidth = Math.max(minSize, resizeState.initialWidth - deltaX)
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
         newHeight = newWidth / resizeState.aspectRatio
         newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
         break
       case 'ne': // 东北角
-        newWidth = Math.max(minSize, resizeState.initialWidth + deltaX)
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
         newHeight = newWidth / resizeState.aspectRatio
         newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
         break
       case 'nw': // 西北角
-        newWidth = Math.max(minSize, resizeState.initialWidth - deltaX)
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
         newHeight = newWidth / resizeState.aspectRatio
         newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
         newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
         break
     }
 
-    // 确保不小于最小尺寸
-    if (newWidth >= minSize && newHeight >= minSize) {
-      image.width = newWidth
-      image.height = newHeight
-      image.x = newX
-      image.y = newY
-    }
+    image.width = newWidth
+    image.height = newHeight
+    image.x = newX
+    image.y = newY
   }
 }
 
@@ -603,6 +609,136 @@ const handleButtonTouchEnd = () => {
   }
 }
 
+// 触摸事件处理 - 拖拽
+const startDragTouch = (e: TouchEvent, image: FloatingImage) => {
+  const touch = e.touches[0]
+  if (!touch) return
+
+  dragState.isDragging = true
+  dragState.imageId = image.id
+  dragState.startX = touch.clientX
+  dragState.startY = touch.clientY
+  dragState.initialX = image.x
+  dragState.initialY = image.y
+
+  bringToFront(image)
+}
+
+// 触摸事件处理 - 调整大小
+const startResizeTouch = (e: TouchEvent, image: FloatingImage, direction: string) => {
+  const touch = e.touches[0]
+  if (!touch) return
+
+  resizeState.isResizing = true
+  resizeState.imageId = image.id
+  resizeState.direction = direction
+  resizeState.startX = touch.clientX
+  resizeState.startY = touch.clientY
+  resizeState.initialWidth = image.width
+  resizeState.initialHeight = image.height
+  resizeState.initialX = image.x
+  resizeState.initialY = image.y
+  resizeState.aspectRatio = image.aspectRatio
+
+  bringToFront(image)
+}
+
+// 处理触摸移动 - 拖拽
+const handleDragMoveTouch = (e: TouchEvent) => {
+  if (dragState.isDragging && dragState.imageId) {
+    const touch = e.touches[0]
+    if (!touch) return
+
+    const image = floatingImages.value.find(img => img.id === dragState.imageId)
+    if (image) {
+      const deltaX = touch.clientX - dragState.startX
+      const deltaY = touch.clientY - dragState.startY
+      image.x = Math.max(0, dragState.initialX + deltaX)
+      image.y = Math.max(0, dragState.initialY + deltaY)
+    }
+  }
+}
+
+// 处理触摸移动 - 调整大小
+const handleResizeMoveTouch = (e: TouchEvent) => {
+  if (resizeState.isResizing && resizeState.imageId) {
+    const touch = e.touches[0]
+    if (!touch) return
+
+    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
+    if (!image) return
+
+    const deltaX = touch.clientX - resizeState.startX
+    const deltaY = touch.clientY - resizeState.startY
+
+    let newWidth = resizeState.initialWidth
+    let newHeight = resizeState.initialHeight
+    let newX = resizeState.initialX
+    let newY = resizeState.initialY
+
+    switch (resizeState.direction) {
+      case 'se':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        break
+      case 'sw':
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        break
+      case 'ne':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+      case 'nw':
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+    }
+
+    image.width = newWidth
+    image.height = newHeight
+    image.x = newX
+    image.y = newY
+  }
+}
+
+// 结束触摸拖拽
+const endDragTouch = () => {
+  if (dragState.isDragging && dragState.imageId) {
+    const image = floatingImages.value.find(img => img.id === dragState.imageId)
+    if (image) {
+      floatingImageStore.updateImage(dragState.imageId, {
+        x: image.x,
+        y: image.y
+      })
+    }
+  }
+  dragState.isDragging = false
+  dragState.imageId = null
+}
+
+// 结束触摸调整大小
+const endResizeTouch = () => {
+  if (resizeState.isResizing && resizeState.imageId) {
+    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
+    if (image) {
+      floatingImageStore.updateImage(resizeState.imageId, {
+        x: image.x,
+        y: image.y,
+        width: image.width,
+        height: image.height
+      })
+    }
+  }
+  resizeState.isResizing = false
+  resizeState.imageId = null
+  resizeState.direction = ''
+}
+
 // 全局鼠标事件监听
 onMounted(() => {
   document.addEventListener('mousemove', handleDragMove)
@@ -611,6 +747,11 @@ onMounted(() => {
   document.addEventListener('mouseup', endDrag)
   document.addEventListener('mouseup', endResize)
   document.addEventListener('mouseup', endButtonDrag)
+  // 触摸事件
+  document.addEventListener('touchmove', handleDragMoveTouch, { passive: false })
+  document.addEventListener('touchmove', handleResizeMoveTouch, { passive: false })
+  document.addEventListener('touchend', endDragTouch)
+  document.addEventListener('touchend', endResizeTouch)
 })
 
 onUnmounted(() => {
@@ -620,6 +761,11 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', endDrag)
   document.removeEventListener('mouseup', endResize)
   document.removeEventListener('mouseup', endButtonDrag)
+  // 触摸事件
+  document.removeEventListener('touchmove', handleDragMoveTouch)
+  document.removeEventListener('touchmove', handleResizeMoveTouch)
+  document.removeEventListener('touchend', endDragTouch)
+  document.removeEventListener('touchend', endResizeTouch)
 })
 </script>
 
@@ -861,47 +1007,35 @@ onUnmounted(() => {
 }
 
 .image-item {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.image-item img {
   width: 100px;
   height: 100px;
+  object-fit: cover;
   border-radius: 8px;
-  overflow: hidden;
   border: 2px solid #eee;
   transition: all 0.3s ease;
 }
 
-.image-item.is-hidden {
-  opacity: 0.5;
+.image-item.is-hidden img {
   border-color: #ccc;
+  opacity: 0.5;
 }
 
-.image-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.image-item .image-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+.image-item .image-controls {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
+  gap: 12px;
 }
 
-.image-item:hover .image-overlay {
-  opacity: 1;
-}
-
-.image-overlay .delete-btn {
+.image-controls .delete-btn {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -916,10 +1050,47 @@ onUnmounted(() => {
   }
 
   .image-window {
-    max-width: 90vw;
+    max-width: 85vw;
   }
 
-  .image-item {
+  /* 增大移动端关闭按钮 */
+  .floating-close-btn {
+    opacity: 1;
+    transform: scale(1);
+    width: 32px;
+    height: 32px;
+    top: -10px;
+    right: -10px;
+  }
+
+  /* 增大移动端调整大小手柄 */
+  .resize-handle {
+    width: 20px;
+    height: 20px;
+    border-width: 3px;
+  }
+
+  .resize-se {
+    right: -10px;
+    bottom: -10px;
+  }
+
+  .resize-sw {
+    left: -10px;
+    bottom: -10px;
+  }
+
+  .resize-ne {
+    right: -10px;
+    top: -10px;
+  }
+
+  .resize-nw {
+    left: -10px;
+    top: -10px;
+  }
+
+  .image-item img {
     width: 80px;
     height: 80px;
   }
