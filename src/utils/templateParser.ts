@@ -2,7 +2,7 @@ import type { TemplateSegment, TemplateTag, ChatHistoryRange, Message, MessageRo
 
 /**
  * 解析模板字符串，提取标签和文本
- * 支持标签: *role_description*, *chat_history*, *chat_history[-1]*, *chat_history[0-5]*, *user_reply*, *自定义1*, *自定义2* 等
+ * 支持标签: *role_description*, *chat_history*, *chat_history[-1]*, *chat_history[0,5]*, *chat_history[-6,-1]*, *user_reply*, *自定义1*, *自定义2* 等
  */
 export function parseTemplate(template: string): TemplateSegment[] {
   const segments: TemplateSegment[] = []
@@ -51,16 +51,16 @@ export function parseTemplate(template: string): TemplateSegment[] {
 
 /**
  * 解析 chat_history 的范围字符串
- * 支持: [-1], [0], [0-5], [2-], [-3--1]
+ * 支持: [-1], [0], [0,5], [-6,-1] (倒数前6条)
  */
 function parseChatHistoryRange(rangeStr: string): ChatHistoryRange {
   const trimmed = rangeStr.trim()
 
-  // 检查是否是区间格式 (如 0-5, 2-, -3--1)
-  const rangeMatch = trimmed.match(/^(-?\d+)\s*-\s*(-?\d+)?$/)
-  if (rangeMatch && rangeMatch[1]) {
-    const start = parseInt(rangeMatch[1], 10)
-    const end = rangeMatch[2] !== undefined ? parseInt(rangeMatch[2], 10) : undefined
+  // 检查是否是逗号分隔的区间格式 (如 0,5, -6,-1)
+  const commaRangeMatch = trimmed.match(/^(-?\d+)\s*,\s*(-?\d+)$/)
+  if (commaRangeMatch && commaRangeMatch[1] && commaRangeMatch[2]) {
+    const start = parseInt(commaRangeMatch[1], 10)
+    const end = parseInt(commaRangeMatch[2], 10)
     return { start, end, isSingle: false }
   }
 

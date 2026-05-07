@@ -501,14 +501,10 @@ const truncate = (str: string, length: number) => {
 }
 
 .more-btn {
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s;
   border: none;
   background: transparent;
-}
-
-.agent-item:hover .more-btn {
-  opacity: 1;
 }
 
 .add-agent-btn {
@@ -599,15 +595,11 @@ const truncate = (str: string, length: number) => {
 }
 
 .chat-item .more-btn {
-  opacity: 0;
+  opacity: 1;
   transition: opacity 0.2s;
   border: none;
   background: transparent;
   color: #999;
-}
-
-.chat-item:hover .more-btn {
-  opacity: 1;
 }
 
 .chat-item .more-btn:hover {

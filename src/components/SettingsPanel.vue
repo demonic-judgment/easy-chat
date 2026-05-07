@@ -112,7 +112,8 @@
                 <li><code>*role_description*</code> - 角色描述（system 消息）</li>
                 <li><code>*chat_history*</code> - 全部聊天记录</li>
                 <li><code>*chat_history[-1]*</code> - 最后一条消息</li>
-                <li><code>*chat_history[0-5]*</code> - 第1到第6条消息</li>
+                <li><code>*chat_history[0,5]*</code> - 第1到第6条消息</li>
+                <li><code>*chat_history[-6,-1]*</code> - 倒数前6条消息</li>
                 <li><code>*user_reply*</code> - 用户当前回复</li>
                 <li><code>*自定义1*</code> - 引用模板中名称为"自定义1"的提示词</li>
                 <li><code>*自定义2*</code> - 引用模板中名称为"自定义2"的提示词</li>
