@@ -255,10 +255,23 @@ const buildMessages = (
 const streamingMessageId = ref<string | null>(null)
 
 const handleSendMessage = async (content: string, images?: ImageContent[]) => {
-  if (!chatStore.currentChatId || !modelStore.currentModelId) return
+  if (!modelStore.currentModelId) return
+
+  // 如果没有选中的会话，自动创建新对话
+  if (!chatStore.currentChatId) {
+    if (!agentStore.currentAgentId) return
+    const agent = agentStore.getAgentById(agentStore.currentAgentId)
+    if (!agent) return
+    const chat = await chatStore.createChat(agentStore.currentAgentId, `与 ${agent.name} 的对话`)
+    await messageStore.createMessage(chat.id, 'system', agent.roleDescription)
+    if (agent.firstMessage.trim()) {
+      await messageStore.createMessage(chat.id, 'assistant', agent.firstMessage)
+    }
+    chatStore.setCurrentChat(chat.id)
+  }
 
   // 先保存用户消息
-  await messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content, images)
+  await messageStore.createMessage(chatStore.currentChatId!, 'user' as MessageRole, content, images)
   scrollToBottom(true) // 用户发送消息时强制滚动到底部
   isLoading.value = true
   streamingMessageId.value = null
@@ -310,7 +323,7 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
 
     // 创建空消息用于流式更新
     const message = await messageStore.createMessage(
-      chatStore.currentChatId,
+      chatStore.currentChatId!,
       'assistant' as MessageRole,
       ''
     )
@@ -394,7 +407,7 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
         )
       } else {
         await messageStore.createMessage(
-          chatStore.currentChatId,
+          chatStore.currentChatId!,
           'assistant' as MessageRole,
           `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}`
         )
