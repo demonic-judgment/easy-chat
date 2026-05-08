@@ -1,9 +1,6 @@
 import { exportAllData, type BackupData } from './backup'
 
 // Google OAuth2 配置
-const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID' // 用户需要替换为自己的 Client ID
-const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY' // 用户需要替换为自己的 API Key
-const GOOGLE_DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file'
 
 // 备份文件在 Google Drive 中的名称
@@ -126,9 +123,9 @@ export function getAuthState(): GoogleAuthState {
  */
 export function signInWithGoogle(): Promise<GoogleAuthState> {
   return new Promise((resolve, reject) => {
-    const clientId = localStorage.getItem('easy-chat-google-client-id') || GOOGLE_CLIENT_ID
+    const clientId = localStorage.getItem('easy-chat-google-client-id')
 
-    if (clientId === 'YOUR_GOOGLE_CLIENT_ID') {
+    if (!clientId) {
       reject(new Error('请先配置 Google Client ID'))
       return
     }
