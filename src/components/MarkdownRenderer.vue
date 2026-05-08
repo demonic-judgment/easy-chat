@@ -137,11 +137,11 @@ const renderedContent = computed(() => {
   color: #e85a71;
 }
 
-/* 斜体 - 使用柔和的蓝紫色 */
+/* 斜体 - 使用暗橙黄色 */
 .markdown-body :deep(em),
 .markdown-body :deep(i) {
   font-style: italic;
-  color: #7b8cde;
+  color: #cc8400;
 }
 
 /* 列表项标记 - 使用清新的青绿色 */

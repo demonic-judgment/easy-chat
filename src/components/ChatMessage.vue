@@ -636,9 +636,10 @@ defineExpose({
 }
 
 .message-item.user-message .message-content {
-  background: linear-gradient(135deg, #ff85a2, #ff6b9d);
-  color: white;
-  box-shadow: 0 4px 16px rgba(255, 107, 157, 0.4), 0 2px 6px rgba(0, 0, 0, 0.1);
+  background: #f5f5f5;
+  color: #333;
+  border: 2px solid #ff85a2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   position: relative;
 }
 
@@ -650,20 +651,21 @@ defineExpose({
 }
 
 .message-item.user-message .message-content :deep(.markdown-body) {
-  color: white;
+  color: #333;
 }
 
 .message-item.user-message .message-content :deep(code) {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
+  background-color: rgba(255, 133, 162, 0.15);
+  color: #ff6b9d;
 }
 
 .message-item.user-message .message-content :deep(pre) {
-  background-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 133, 162, 0.1);
 }
 
 .message-item.user-message .message-content :deep(pre code) {
   background-color: transparent;
+  color: #333;
 }
 
 /* 重新生成按钮容器 */
