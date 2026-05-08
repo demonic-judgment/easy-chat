@@ -147,20 +147,20 @@ const scrollToBottom = (force: boolean = false) => {
   })
 }
 
-const startNewChat = () => {
+const startNewChat = async () => {
   if (!agentStore.currentAgentId) return
   const agent = agentStore.getAgentById(agentStore.currentAgentId)
   if (agent) {
-    const chat = chatStore.createChat(agentStore.currentAgentId, `与 ${agent.name} 的对话`)
-    messageStore.createMessage(chat.id, 'system', agent.roleDescription)
+    const chat = await chatStore.createChat(agentStore.currentAgentId, `与 ${agent.name} 的对话`)
+    await messageStore.createMessage(chat.id, 'system', agent.roleDescription)
     if (agent.firstMessage.trim()) {
-      messageStore.createMessage(chat.id, 'assistant', agent.firstMessage)
+      await messageStore.createMessage(chat.id, 'assistant', agent.firstMessage)
     }
     chatStore.setCurrentChat(chat.id)
   }
 }
 
-const syncAgentConfigToCurrentAgentChats = () => {
+const syncAgentConfigToCurrentAgentChats = async () => {
   if (!agentStore.currentAgentId) return
   const agent = agentStore.getAgentById(agentStore.currentAgentId)
   if (!agent) return
@@ -170,12 +170,12 @@ const syncAgentConfigToCurrentAgentChats = () => {
     const chatMessages = messageStore.getMessagesByChatId(chat.id)
     const systemMsg = chatMessages.find(m => m.role === 'system')
     if (systemMsg) {
-      messageStore.updateMessage(systemMsg.id, { content: agent.roleDescription })
+      await messageStore.updateMessage(systemMsg.id, { content: agent.roleDescription })
     }
 
     const firstAssistantMsg = chatMessages.find(m => m.role === 'assistant')
     if (firstAssistantMsg && agent.firstMessage.trim()) {
-      messageStore.updateMessage(firstAssistantMsg.id, { content: agent.firstMessage })
+      await messageStore.updateMessage(firstAssistantMsg.id, { content: agent.firstMessage })
     }
   }
 }
@@ -258,7 +258,7 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
   if (!chatStore.currentChatId || !modelStore.currentModelId) return
 
   // 先保存用户消息
-  messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content, images)
+  await messageStore.createMessage(chatStore.currentChatId, 'user' as MessageRole, content, images)
   scrollToBottom(true) // 用户发送消息时强制滚动到底部
   isLoading.value = true
   streamingMessageId.value = null
@@ -309,7 +309,7 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
     let meta: Record<string, any> | undefined
 
     // 创建空消息用于流式更新
-    const message = messageStore.createMessage(
+    const message = await messageStore.createMessage(
       chatStore.currentChatId,
       'assistant' as MessageRole,
       ''
@@ -339,7 +339,8 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
 
           if (event.content) {
             fullContent += event.content
-            messageStore.updateMessage(message.id, { content: fullContent })
+            // 流式更新时跳过 IndexedDB 存储，提升性能
+            await messageStore.updateMessage(message.id, { content: fullContent }, true)
             scrollToBottom()
           }
 
@@ -374,7 +375,7 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
 
     // 更新最终消息内容和元数据
     console.log("[Client] Updating message with meta:", JSON.stringify(meta))
-    messageStore.updateMessage(message.id, {
+    await messageStore.updateMessage(message.id, {
       content: fullContent,
       meta
     })
@@ -387,12 +388,12 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
       console.log('请求已被用户暂停')
     } else {
       if (streamingMessageId.value) {
-        messageStore.updateMessage(
+        await messageStore.updateMessage(
           streamingMessageId.value,
           { content: `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}` }
         )
       } else {
-        messageStore.createMessage(
+        await messageStore.createMessage(
           chatStore.currentChatId,
           'assistant' as MessageRole,
           `抱歉，发生了错误: ${error instanceof Error ? error.message : '未知错误'}`
@@ -431,14 +432,14 @@ const isLatestAssistantMessage = (message: Message, index: number): boolean => {
 }
 
 // 删除单条消息
-const handleDeleteMessage = (messageId: string) => {
-  messageStore.deleteMessage(messageId)
+const handleDeleteMessage = async (messageId: string) => {
+  await messageStore.deleteMessage(messageId)
 }
 
 // 删除本条及以下消息
-const handleDeleteWithBelow = (messageId: string) => {
+const handleDeleteWithBelow = async (messageId: string) => {
   if (chatStore.currentChatId) {
-    messageStore.deleteMessageAndAfter(chatStore.currentChatId, messageId)
+    await messageStore.deleteMessageAndAfter(chatStore.currentChatId, messageId)
   }
 }
 
@@ -462,7 +463,7 @@ const handleRegenerate = async (messageId: string) => {
   abortController.value = new AbortController()
 
   // 创建新的空白变体，将当前内容保存为变体，切换到新的空白变体
-  messageStore.createEmptyVariant(messageId)
+  await messageStore.createEmptyVariant(messageId)
 
   try {
     const model = modelStore.getModelById(modelStore.currentModelId)
@@ -530,7 +531,7 @@ const handleRegenerate = async (messageId: string) => {
           if (event.content) {
             fullContent += event.content
             // 实时更新当前变体内容，实现打字机效果
-            messageStore.updateCurrentVariant(messageId, fullContent)
+            await messageStore.updateCurrentVariant(messageId, fullContent)
             scrollToBottom()
           }
 
@@ -563,7 +564,7 @@ const handleRegenerate = async (messageId: string) => {
     }
 
     // 更新最终变体内容和元数据
-    messageStore.updateCurrentVariant(messageId, fullContent, meta)
+    await messageStore.updateCurrentVariant(messageId, fullContent, meta)
     scrollToBottom()
 
   } catch (error) {

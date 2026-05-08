@@ -1,4 +1,6 @@
 import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingImage } from '@/types'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 // 数据备份结构
 export interface BackupData {
@@ -15,42 +17,38 @@ export interface BackupData {
   }
 }
 
-// 本地存储键名映射
-const STORAGE_KEYS = {
-  agents: 'easy-chat-agents',
-  chatHistories: 'easy-chat-histories',
-  messages: 'easy-chat-messages',
-  templates: 'easy-chat-templates',
-  models: 'easy-chat-models',
-  settings: 'easy-chat-settings',
-  floatingImages: 'easy-chat-floating-images'
-}
-
 const BACKUP_VERSION = '1.0.0'
 
 /**
  * 导出所有数据
  */
-export function exportAllData(): BackupData {
-  const getItem = (key: string) => {
-    const stored = localStorage.getItem(key)
-    return stored ? JSON.parse(stored) : null
-  }
+export async function exportAllData(): Promise<BackupData> {
+  const [agents, chatHistories, messages, templates, models, settingsRecord, floatingImagesRecord] = await Promise.all([
+    db.agents.toArray(),
+    db.chatHistories.toArray(),
+    db.messages.toArray(),
+    db.templates.toArray(),
+    db.models.toArray(),
+    db.settings.get('app-settings'),
+    db.floatingImages.get('app-floating-images')
+  ])
 
-  const settings = getItem(STORAGE_KEYS.settings) || {}
-  const floatingImagesData = getItem(STORAGE_KEYS.floatingImages) || { images: [], maxZIndex: 1000 }
+  const defaultSettings: AppSettings = {
+    background: { type: 'color', value: '#ffeef5', opacity: 1 },
+    chatOpacity: 0.95
+  }
 
   return {
     version: BACKUP_VERSION,
     exportedAt: Date.now(),
     data: {
-      agents: getItem(STORAGE_KEYS.agents) || [],
-      chatHistories: getItem(STORAGE_KEYS.chatHistories) || [],
-      messages: getItem(STORAGE_KEYS.messages) || [],
-      templates: getItem(STORAGE_KEYS.templates) || [],
-      models: getItem(STORAGE_KEYS.models) || [],
-      settings,
-      floatingImages: floatingImagesData.images || []
+      agents,
+      chatHistories,
+      messages,
+      templates,
+      models,
+      settings: settingsRecord?.value || defaultSettings,
+      floatingImages: floatingImagesRecord?.images || []
     }
   }
 }
@@ -58,8 +56,8 @@ export function exportAllData(): BackupData {
 /**
  * 导出数据为 JSON 文件
  */
-export function exportDataToFile(): void {
-  const backupData = exportAllData()
+export async function exportDataToFile(): Promise<void> {
+  const backupData = await exportAllData()
   const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
 
@@ -108,18 +106,29 @@ export function validateBackupData(data: unknown): { valid: boolean; error?: str
   return { valid: true }
 }
 
+// 恢复统计信息
+export interface RestoreStats {
+  agents: { imported: number; skipped: number }
+  chatHistories: { imported: number; skipped: number }
+  messages: { imported: number; skipped: number }
+  templates: { imported: number; skipped: number }
+  models: { imported: number; skipped: number }
+  settings: { imported: boolean }
+  floatingImages: { imported: number; skipped: number }
+}
+
 /**
  * 恢复数据
  * @param backupData 备份数据
  * @param options 恢复选项
  */
-export function restoreData(
+export async function restoreData(
   backupData: BackupData,
   options: {
     merge?: boolean
     keepExisting?: boolean
   } = {}
-): { success: boolean; error?: string; stats?: RestoreStats } {
+): Promise<{ success: boolean; error?: string; stats?: RestoreStats }> {
   const { merge = false, keepExisting = false } = options
 
   try {
@@ -139,10 +148,14 @@ export function restoreData(
     }
 
     // 获取现有数据
-    const getExisting = (key: string) => {
-      const stored = localStorage.getItem(key)
-      return stored ? JSON.parse(stored) : []
-    }
+    const [existingAgents, existingHistories, existingMessages, existingTemplates, existingModels, existingFloatingImages] = await Promise.all([
+      db.agents.toArray(),
+      db.chatHistories.toArray(),
+      db.messages.toArray(),
+      db.templates.toArray(),
+      db.models.toArray(),
+      db.floatingImages.get('app-floating-images').then(r => r?.images || [])
+    ])
 
     // 合并或替换数据
     const processData = <T extends { id: string }>(
@@ -175,38 +188,38 @@ export function restoreData(
     }
 
     // 恢复各项数据
-    const existingAgents = getExisting(STORAGE_KEYS.agents)
     const agents = processData(backupData.data.agents, existingAgents, 'agents')
-    localStorage.setItem(STORAGE_KEYS.agents, JSON.stringify(agents))
+    await db.agents.clear()
+    await db.agents.bulkPut(agents)
 
-    const existingHistories = getExisting(STORAGE_KEYS.chatHistories)
     const chatHistories = processData(backupData.data.chatHistories, existingHistories, 'chatHistories')
-    localStorage.setItem(STORAGE_KEYS.chatHistories, JSON.stringify(chatHistories))
+    await db.chatHistories.clear()
+    await db.chatHistories.bulkPut(chatHistories)
 
-    const existingMessages = getExisting(STORAGE_KEYS.messages)
     const messages = processData(backupData.data.messages, existingMessages, 'messages')
-    localStorage.setItem(STORAGE_KEYS.messages, JSON.stringify(messages))
+    await db.messages.clear()
+    await db.messages.bulkPut(messages)
 
-    const existingTemplates = getExisting(STORAGE_KEYS.templates)
     const templates = processData(backupData.data.templates, existingTemplates, 'templates')
-    localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(templates))
+    await db.templates.clear()
+    await db.templates.bulkPut(templates)
 
-    const existingModels = getExisting(STORAGE_KEYS.models)
     const models = processData(backupData.data.models, existingModels, 'models')
-    localStorage.setItem(STORAGE_KEYS.models, JSON.stringify(models))
+    await db.models.clear()
+    await db.models.bulkPut(models)
 
     // 恢复设置
-    if (!keepExisting || !localStorage.getItem(STORAGE_KEYS.settings)) {
+    const existingSettings = await db.settings.get('app-settings')
+    if (!keepExisting || !existingSettings) {
       // 清理旧版本备份中的 user 和 avatarSize 字段
       const settings = { ...backupData.data.settings }
       delete (settings as Record<string, unknown>).user
       delete (settings as Record<string, unknown>).avatarSize
-      localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(settings))
+      await db.settings.put({ id: 'app-settings', value: toStorable(settings) })
       stats.settings.imported = true
     }
 
     // 恢复悬浮图片
-    const existingFloatingImages = getExisting(STORAGE_KEYS.floatingImages).images || []
     const floatingImages = processData(
       backupData.data.floatingImages || [],
       existingFloatingImages,
@@ -215,10 +228,11 @@ export function restoreData(
     const maxZIndex = floatingImages.length > 0
       ? Math.max(...floatingImages.map((img: FloatingImage) => img.zIndex), 1000)
       : 1000
-    localStorage.setItem(STORAGE_KEYS.floatingImages, JSON.stringify({
-      images: floatingImages,
+    await db.floatingImages.put({
+      id: 'app-floating-images',
+      images: toStorable(floatingImages),
       maxZIndex
-    }))
+    })
 
     return { success: true, stats }
   } catch (error) {
@@ -258,65 +272,47 @@ export function readBackupFromFile(file: File): Promise<{ success: boolean; data
   })
 }
 
-// 恢复统计信息
-export interface RestoreStats {
-  agents: { imported: number; skipped: number }
-  chatHistories: { imported: number; skipped: number }
-  messages: { imported: number; skipped: number }
-  templates: { imported: number; skipped: number }
-  models: { imported: number; skipped: number }
-  settings: { imported: boolean }
-  floatingImages: { imported: number; skipped: number }
-}
-
 /**
  * 获取数据概览
  */
-export function getDataOverview(): {
+export async function getDataOverview(): Promise<{
   agents: number
   chatHistories: number
   messages: number
   templates: number
   models: number
   floatingImages: number
-} {
-  const getCount = (key: string) => {
-    const stored = localStorage.getItem(key)
-    if (!stored) return 0
-    try {
-      const data = JSON.parse(stored)
-      return Array.isArray(data) ? data.length : 0
-    } catch {
-      return 0
-    }
-  }
-
-  const getFloatingImagesCount = () => {
-    const stored = localStorage.getItem(STORAGE_KEYS.floatingImages)
-    if (!stored) return 0
-    try {
-      const data = JSON.parse(stored)
-      return data.images?.length || 0
-    } catch {
-      return 0
-    }
-  }
+}> {
+  const [agents, chatHistories, messages, templates, models, floatingImagesRecord] = await Promise.all([
+    db.agents.count(),
+    db.chatHistories.count(),
+    db.messages.count(),
+    db.templates.count(),
+    db.models.count(),
+    db.floatingImages.get('app-floating-images')
+  ])
 
   return {
-    agents: getCount(STORAGE_KEYS.agents),
-    chatHistories: getCount(STORAGE_KEYS.chatHistories),
-    messages: getCount(STORAGE_KEYS.messages),
-    templates: getCount(STORAGE_KEYS.templates),
-    models: getCount(STORAGE_KEYS.models),
-    floatingImages: getFloatingImagesCount()
+    agents,
+    chatHistories,
+    messages,
+    templates,
+    models,
+    floatingImages: floatingImagesRecord?.images?.length || 0
   }
 }
 
 /**
  * 清空所有数据
  */
-export function clearAllData(): void {
-  Object.values(STORAGE_KEYS).forEach(key => {
-    localStorage.removeItem(key)
-  })
+export async function clearAllData(): Promise<void> {
+  await Promise.all([
+    db.agents.clear(),
+    db.chatHistories.clear(),
+    db.messages.clear(),
+    db.templates.clear(),
+    db.models.clear(),
+    db.settings.delete('app-settings'),
+    db.floatingImages.delete('app-floating-images')
+  ])
 }

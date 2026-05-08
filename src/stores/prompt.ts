@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { PromptTemplate, PromptItem } from '@/types'
 import { generateId } from '@/utils/id'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 export const usePromptStore = defineStore('prompt', () => {
   // State - 存储模板列表
@@ -13,19 +15,12 @@ export const usePromptStore = defineStore('prompt', () => {
   }
 
   // Actions
-  const loadTemplates = () => {
-    const stored = localStorage.getItem('easy-chat-templates')
-    if (stored) {
-      templates.value = JSON.parse(stored)
-    }
-  }
-
-  const saveTemplates = () => {
-    localStorage.setItem('easy-chat-templates', JSON.stringify(templates.value))
+  const loadTemplates = async () => {
+    templates.value = await db.templates.toArray()
   }
 
   // 创建模板
-  const createTemplate = (data: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>): PromptTemplate => {
+  const createTemplate = async (data: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<PromptTemplate> => {
     const now = Date.now()
     const template: PromptTemplate = {
       id: generateId(),
@@ -36,13 +31,13 @@ export const usePromptStore = defineStore('prompt', () => {
       createdAt: now,
       updatedAt: now
     }
+    await db.templates.put(toStorable(template))
     templates.value.push(template)
-    saveTemplates()
     return template
   }
 
   // 更新模板
-  const updateTemplate = (id: string, data: Partial<Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  const updateTemplate = async (id: string, data: Partial<Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>>) => {
     const existing = templates.value.find(t => t.id === id)
     if (existing) {
       const updated: PromptTemplate = {
@@ -54,10 +49,10 @@ export const usePromptStore = defineStore('prompt', () => {
         createdAt: existing.createdAt,
         updatedAt: Date.now()
       }
+      await db.templates.put(toStorable(updated))
       const index = templates.value.findIndex(t => t.id === id)
       if (index !== -1) {
-        templates.value[index] = updated
-        saveTemplates()
+        templates.value.splice(index, 1, updated)
         return true
       }
     }
@@ -65,18 +60,18 @@ export const usePromptStore = defineStore('prompt', () => {
   }
 
   // 删除模板
-  const deleteTemplate = (id: string) => {
+  const deleteTemplate = async (id: string) => {
+    await db.templates.delete(id)
     const index = templates.value.findIndex(t => t.id === id)
     if (index !== -1) {
       templates.value.splice(index, 1)
-      saveTemplates()
       return true
     }
     return false
   }
 
   // 在模板中添加提示词
-  const addPromptToTemplate = (templateId: string, data: Omit<PromptItem, 'id' | 'createdAt' | 'updatedAt'>): PromptItem | null => {
+  const addPromptToTemplate = async (templateId: string, data: Omit<PromptItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<PromptItem | null> => {
     const template = getTemplateById(templateId)
     if (!template) return null
 
@@ -92,16 +87,16 @@ export const usePromptStore = defineStore('prompt', () => {
 
     template.prompts.push(prompt)
     template.updatedAt = now
-    saveTemplates()
+    await db.templates.put(toStorable(template))
     return prompt
   }
 
   // 更新模板中的提示词
-  const updatePromptInTemplate = (
+  const updatePromptInTemplate = async (
     templateId: string,
     promptId: string,
     data: Partial<Omit<PromptItem, 'id' | 'createdAt' | 'updatedAt'>>
-  ): boolean => {
+  ): Promise<boolean> => {
     const template = getTemplateById(templateId)
     if (!template) return false
 
@@ -118,12 +113,12 @@ export const usePromptStore = defineStore('prompt', () => {
       updatedAt: Date.now()
     }
     template.updatedAt = Date.now()
-    saveTemplates()
+    await db.templates.put(toStorable(template))
     return true
   }
 
   // 删除模板中的提示词
-  const deletePromptFromTemplate = (templateId: string, promptId: string): boolean => {
+  const deletePromptFromTemplate = async (templateId: string, promptId: string): Promise<boolean> => {
     const template = getTemplateById(templateId)
     if (!template) return false
 
@@ -132,7 +127,7 @@ export const usePromptStore = defineStore('prompt', () => {
 
     template.prompts.splice(promptIndex, 1)
     template.updatedAt = Date.now()
-    saveTemplates()
+    await db.templates.put(toStorable(template))
     return true
   }
 
@@ -148,7 +143,6 @@ export const usePromptStore = defineStore('prompt', () => {
     addPromptToTemplate,
     updatePromptInTemplate,
     deletePromptFromTemplate,
-    loadTemplates,
-    saveTemplates
+    loadTemplates
   }
 })

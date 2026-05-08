@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Agent } from '@/types'
 import { generateId } from '@/utils/id'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 export const useAgentStore = defineStore('agent', () => {
   // State
@@ -19,18 +21,11 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   // Actions
-  const loadAgents = () => {
-    const stored = localStorage.getItem('easy-chat-agents')
-    if (stored) {
-      agents.value = JSON.parse(stored)
-    }
+  const loadAgents = async () => {
+    agents.value = await db.agents.toArray()
   }
 
-  const saveAgents = () => {
-    localStorage.setItem('easy-chat-agents', JSON.stringify(agents.value))
-  }
-
-  const createAgent = (data: Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>): Agent => {
+  const createAgent = async (data: Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>): Promise<Agent> => {
     const now = Date.now()
     const agent: Agent = {
       id: generateId(),
@@ -41,12 +36,12 @@ export const useAgentStore = defineStore('agent', () => {
       createdAt: now,
       updatedAt: now
     }
+    await db.agents.put(toStorable(agent))
     agents.value.push(agent)
-    saveAgents()
     return agent
   }
 
-  const updateAgent = (id: string, data: Partial<Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  const updateAgent = async (id: string, data: Partial<Omit<Agent, 'id' | 'createdAt' | 'updatedAt'>>) => {
     const existing = agents.value.find(a => a.id === id)
     if (existing) {
       const updated: Agent = {
@@ -58,22 +53,22 @@ export const useAgentStore = defineStore('agent', () => {
         createdAt: existing.createdAt,
         updatedAt: Date.now()
       }
+      await db.agents.put(toStorable(updated))
       const index = agents.value.findIndex(a => a.id === id)
       if (index !== -1) {
-        agents.value[index] = updated
+        agents.value.splice(index, 1, updated)
         agentUpdateTimestamp.value = Date.now()
-        saveAgents()
         return true
       }
     }
     return false
   }
 
-  const deleteAgent = (id: string) => {
+  const deleteAgent = async (id: string) => {
+    await db.agents.delete(id)
     const index = agents.value.findIndex(a => a.id === id)
     if (index !== -1) {
       agents.value.splice(index, 1)
-      saveAgents()
       if (currentAgentId.value === id) {
         currentAgentId.value = null
       }
@@ -87,16 +82,16 @@ export const useAgentStore = defineStore('agent', () => {
   }
 
   // 初始化时加载数据
-  loadAgents()
-
-  // 如果没有智能体，创建一个默认的
-  if (agents.value.length === 0) {
-    createAgent({
-      name: '默认助手',
-      roleDescription: '你是一个 helpful 的 AI 助手。',
-      firstMessage: '你好！我是你的 AI 助手，有什么可以帮助你的吗？'
-    })
-  }
+  loadAgents().then(() => {
+    // 如果没有智能体，创建一个默认的
+    if (agents.value.length === 0) {
+      createAgent({
+        name: '默认助手',
+        roleDescription: '你是一个 helpful 的 AI 助手。',
+        firstMessage: '你好！我是你的 AI 助手，有什么可以帮助你的吗？'
+      })
+    }
+  })
 
   return {
     agents,
@@ -108,7 +103,6 @@ export const useAgentStore = defineStore('agent', () => {
     updateAgent,
     deleteAgent,
     setCurrentAgent,
-    loadAgents,
-    saveAgents
+    loadAgents
   }
 })

@@ -265,7 +265,7 @@ const handleFileChange = (uploadFile: UploadFile) => {
 const isMobile = () => window.innerWidth <= 768
 
 // 添加图片
-const addImage = (url: string, name: string) => {
+const addImage = async (url: string, name: string) => {
   // 计算初始位置（错开显示）
   const offset = floatingImages.value.length * 30
 
@@ -276,7 +276,7 @@ const addImage = (url: string, name: string) => {
   const initialWidth = mobile ? Math.min(250, window.innerWidth - 40) : 300
   const initialHeight = mobile ? 180 : 200
 
-  floatingImageStore.addImage({
+  await floatingImageStore.addImage({
     url,
     name,
     x: initialX,
@@ -291,18 +291,18 @@ const addImage = (url: string, name: string) => {
 }
 
 // 关闭图片（彻底删除）
-const closeImage = (id: string) => {
-  floatingImageStore.removeImage(id)
+const closeImage = async (id: string) => {
+  await floatingImageStore.removeImage(id)
 }
 
 // 切换图片显示/隐藏
-const toggleImageVisibility = (id: string) => {
-  floatingImageStore.toggleVisibility(id)
+const toggleImageVisibility = async (id: string) => {
+  await floatingImageStore.toggleVisibility(id)
 }
 
 // 将窗口置于最前
-const bringToFront = (image: FloatingImage) => {
-  floatingImageStore.bringToFront(image.id)
+const bringToFront = async (image: FloatingImage) => {
+  await floatingImageStore.bringToFront(image.id)
 }
 
 // 处理窗口鼠标按下
@@ -339,11 +339,11 @@ const handleDragMove = (e: MouseEvent) => {
 }
 
 // 结束拖拽
-const endDrag = () => {
+const endDrag = async () => {
   if (dragState.isDragging && dragState.imageId) {
     const image = floatingImages.value.find(img => img.id === dragState.imageId)
     if (image) {
-      floatingImageStore.updateImage(dragState.imageId, {
+      await floatingImageStore.updateImage(dragState.imageId, {
         x: image.x,
         y: image.y
       })
@@ -436,7 +436,7 @@ const endResize = () => {
 }
 
 // 处理图片加载
-const handleImageLoad = (e: Event, image: FloatingImage) => {
+const handleImageLoad = async (e: Event, image: FloatingImage) => {
   const img = e.target as HTMLImageElement
   const naturalWidth = img.naturalWidth
   const naturalHeight = img.naturalHeight
@@ -445,7 +445,7 @@ const handleImageLoad = (e: Event, image: FloatingImage) => {
   // 根据图片比例调整初始高度
   const newHeight = image.width / aspectRatio
 
-  floatingImageStore.updateImage(image.id, {
+  await floatingImageStore.updateImage(image.id, {
     naturalWidth,
     naturalHeight,
     aspectRatio,
@@ -707,11 +707,11 @@ const handleResizeMoveTouch = (e: TouchEvent) => {
 }
 
 // 结束触摸拖拽
-const endDragTouch = () => {
+const endDragTouch = async () => {
   if (dragState.isDragging && dragState.imageId) {
     const image = floatingImages.value.find(img => img.id === dragState.imageId)
     if (image) {
-      floatingImageStore.updateImage(dragState.imageId, {
+      await floatingImageStore.updateImage(dragState.imageId, {
         x: image.x,
         y: image.y
       })
@@ -722,11 +722,11 @@ const endDragTouch = () => {
 }
 
 // 结束触摸调整大小
-const endResizeTouch = () => {
+const endResizeTouch = async () => {
   if (resizeState.isResizing && resizeState.imageId) {
     const image = floatingImages.value.find(img => img.id === resizeState.imageId)
     if (image) {
-      floatingImageStore.updateImage(resizeState.imageId, {
+      await floatingImageStore.updateImage(resizeState.imageId, {
         x: image.x,
         y: image.y,
         width: image.width,

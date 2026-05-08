@@ -518,7 +518,7 @@ const confirmRestoreFromDrive = async () => {
       type: 'warning'
     })
 
-    const restoreResult = restoreData(driveBackupData.value, {
+    const restoreResult = await restoreData(driveBackupData.value, {
       merge: driveRestoreMode.value === 'merge',
       keepExisting: false
     })
@@ -541,8 +541,8 @@ const confirmRestoreFromDrive = async () => {
 }
 
 // 刷新数据概览
-const refreshOverview = () => {
-  overview.value = getDataOverview()
+const refreshOverview = async () => {
+  overview.value = await getDataOverview()
 }
 
 onMounted(() => {
@@ -550,9 +550,9 @@ onMounted(() => {
 })
 
 // 导出数据
-const handleExport = () => {
+const handleExport = async () => {
   try {
-    exportDataToFile()
+    await exportDataToFile()
     ElMessage.success('数据导出成功')
   } catch (error) {
     ElMessage.error('数据导出失败')
@@ -604,7 +604,7 @@ const handleRestore = async () => {
     })
 
     // 执行恢复
-    const restoreResult = restoreData(result.data, {
+    const restoreResult = await restoreData(result.data, {
       merge: restoreMode.value === 'merge',
       keepExisting: false
     })
@@ -652,7 +652,7 @@ const handleClearData = async () => {
       type: 'error'
     })
 
-    clearAllData()
+    await clearAllData()
     ElMessage.success('数据已清空')
     showClearConfirm.value = false
     refreshOverview()

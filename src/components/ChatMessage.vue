@@ -423,9 +423,9 @@ const cancelEdit = () => {
   editContent.value = ''
 }
 
-const saveEdit = () => {
+const saveEdit = async () => {
   if (editContent.value.trim()) {
-    messageStore.updateMessage(props.message.id, { content: editContent.value.trim() })
+    await messageStore.updateMessage(props.message.id, { content: editContent.value.trim() })
   }
   isEditing.value = false
 }
@@ -537,15 +537,15 @@ const currentVariantIndex = computed(() => {
   return props.message.currentVariantIndex ?? (totalVariants.value > 0 ? totalVariants.value - 1 : 0)
 })
 
-const handlePrevVariant = () => {
+const handlePrevVariant = async () => {
   if (currentVariantIndex.value > 0) {
-    messageStore.switchVariant(props.message.id, currentVariantIndex.value - 1)
+    await messageStore.switchVariant(props.message.id, currentVariantIndex.value - 1)
   }
 }
 
-const handleNextVariant = () => {
+const handleNextVariant = async () => {
   if (currentVariantIndex.value < totalVariants.value - 1) {
-    messageStore.switchVariant(props.message.id, currentVariantIndex.value + 1)
+    await messageStore.switchVariant(props.message.id, currentVariantIndex.value + 1)
   }
 }
 

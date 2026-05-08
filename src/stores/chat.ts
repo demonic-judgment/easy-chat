@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { ChatHistory } from '@/types'
 import { generateId } from '@/utils/id'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 export const useChatStore = defineStore('chat', () => {
   // State
@@ -24,18 +26,11 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   // Actions
-  const loadChatHistories = () => {
-    const stored = localStorage.getItem('easy-chat-histories')
-    if (stored) {
-      chatHistories.value = JSON.parse(stored)
-    }
+  const loadChatHistories = async () => {
+    chatHistories.value = await db.chatHistories.toArray()
   }
 
-  const saveChatHistories = () => {
-    localStorage.setItem('easy-chat-histories', JSON.stringify(chatHistories.value))
-  }
-
-  const createChat = (agentId: string, title: string = '新对话'): ChatHistory => {
+  const createChat = async (agentId: string, title: string = '新对话'): Promise<ChatHistory> => {
     const now = Date.now()
     const chat: ChatHistory = {
       id: generateId(),
@@ -44,12 +39,12 @@ export const useChatStore = defineStore('chat', () => {
       createdAt: now,
       updatedAt: now
     }
+    await db.chatHistories.put(toStorable(chat))
     chatHistories.value.push(chat)
-    saveChatHistories()
     return chat
   }
 
-  const updateChat = (id: string, data: Partial<Omit<ChatHistory, 'id' | 'createdAt' | 'updatedAt'>>) => {
+  const updateChat = async (id: string, data: Partial<Omit<ChatHistory, 'id' | 'createdAt' | 'updatedAt'>>) => {
     const existing = chatHistories.value.find(c => c.id === id)
     if (existing) {
       const updated: ChatHistory = {
@@ -59,21 +54,21 @@ export const useChatStore = defineStore('chat', () => {
         createdAt: existing.createdAt,
         updatedAt: Date.now()
       }
+      await db.chatHistories.put(toStorable(updated))
       const index = chatHistories.value.findIndex(c => c.id === id)
       if (index !== -1) {
-        chatHistories.value[index] = updated
-        saveChatHistories()
+        chatHistories.value.splice(index, 1, updated)
         return true
       }
     }
     return false
   }
 
-  const deleteChat = (id: string) => {
+  const deleteChat = async (id: string) => {
+    await db.chatHistories.delete(id)
     const index = chatHistories.value.findIndex(c => c.id === id)
     if (index !== -1) {
       chatHistories.value.splice(index, 1)
-      saveChatHistories()
       if (currentChatId.value === id) {
         currentChatId.value = null
       }
@@ -99,7 +94,6 @@ export const useChatStore = defineStore('chat', () => {
     updateChat,
     deleteChat,
     setCurrentChat,
-    loadChatHistories,
-    saveChatHistories
+    loadChatHistories
   }
 })

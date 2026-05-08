@@ -261,23 +261,23 @@ const selectChat = (id: string) => {
   chatStore.setCurrentChat(id)
 }
 
-const createNewChat = () => {
+const createNewChat = async () => {
   const currentId = agentStore.currentAgentId
   if (!currentId) return
   const agent = agentStore.getAgentById(currentId)
   if (agent) {
-    const chat = chatStore.createChat(currentId, `与 ${agent.name} 的对话`)
-    messageStore.createMessage(chat.id, 'system', agent.roleDescription)
+    const chat = await chatStore.createChat(currentId, `与 ${agent.name} 的对话`)
+    await messageStore.createMessage(chat.id, 'system', agent.roleDescription)
     if (agent.firstMessage.trim()) {
-      messageStore.createMessage(chat.id, 'assistant', agent.firstMessage)
+      await messageStore.createMessage(chat.id, 'assistant', agent.firstMessage)
     }
     chatStore.setCurrentChat(chat.id)
   }
 }
 
-const deleteChat = (id: string) => {
-  messageStore.deleteMessagesByChatId(id)
-  chatStore.deleteChat(id)
+const deleteChat = async (id: string) => {
+  await messageStore.deleteMessagesByChatId(id)
+  await chatStore.deleteChat(id)
 }
 
 const handleChatCommand = async (command: string, chatId: string) => {
@@ -295,9 +295,9 @@ const handleChatCommand = async (command: string, chatId: string) => {
   }
 }
 
-const saveRename = () => {
+const saveRename = async () => {
   if (!renameForm.title.trim() || !editingChatId.value) return
-  chatStore.updateChat(editingChatId.value, { title: renameForm.title.trim() })
+  await chatStore.updateChat(editingChatId.value, { title: renameForm.title.trim() })
   showRenameDialog.value = false
   editingChatId.value = null
   renameForm.title = ''
@@ -318,21 +318,21 @@ const handleAgentCommand = async (command: string, agentId: string) => {
     }
   } else if (command === 'delete') {
     const chats = chatStore.getChatsByAgentId(agentId)
-    chats.forEach(chat => {
-      messageStore.deleteMessagesByChatId(chat.id)
-      chatStore.deleteChat(chat.id)
-    })
-    agentStore.deleteAgent(agentId)
+    for (const chat of chats) {
+      await messageStore.deleteMessagesByChatId(chat.id)
+      await chatStore.deleteChat(chat.id)
+    }
+    await agentStore.deleteAgent(agentId)
   }
 }
 
-const saveAgent = () => {
+const saveAgent = async () => {
   if (!agentForm.name.trim()) return
 
   if (editingAgentId.value) {
-    agentStore.updateAgent(editingAgentId.value, { ...agentForm })
+    await agentStore.updateAgent(editingAgentId.value, { ...agentForm })
   } else {
-    agentStore.createAgent({ ...agentForm })
+    await agentStore.createAgent({ ...agentForm })
   }
 
   showAgentDialog.value = false

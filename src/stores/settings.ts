@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { AppSettings, BackgroundSettings } from '@/types'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 const defaultSettings: AppSettings = {
   background: {
@@ -34,33 +36,33 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   // Actions
-  const loadSettings = () => {
-    const stored = localStorage.getItem('easy-chat-settings')
-    if (stored) {
-      settings.value = { ...defaultSettings, ...JSON.parse(stored) }
+  const loadSettings = async () => {
+    const record = await db.settings.get('app-settings')
+    if (record) {
+      settings.value = { ...defaultSettings, ...record.value }
     }
   }
 
-  const saveSettings = () => {
-    localStorage.setItem('easy-chat-settings', JSON.stringify(settings.value))
+  const saveSettings = async () => {
+    await db.settings.put({ id: 'app-settings', value: toStorable(settings.value) })
   }
 
-  const updateBackground = (background: Partial<BackgroundSettings>) => {
+  const updateBackground = async (background: Partial<BackgroundSettings>) => {
     settings.value.background = {
       ...settings.value.background,
       ...background
     }
-    saveSettings()
+    await saveSettings()
   }
 
-  const updateChatOpacity = (opacity: number) => {
+  const updateChatOpacity = async (opacity: number) => {
     settings.value.chatOpacity = opacity
-    saveSettings()
+    await saveSettings()
   }
 
-  const resetSettings = () => {
+  const resetSettings = async () => {
     settings.value = { ...defaultSettings }
-    saveSettings()
+    await saveSettings()
   }
 
   // 初始化时加载数据

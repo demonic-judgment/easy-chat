@@ -486,20 +486,20 @@ const editModel = async (model: ModelConfig) => {
   modelForm.params = model.params
 }
 
-const saveModel = () => {
+const saveModel = async () => {
   if (!modelForm.name.trim() || !modelForm.apiUrl.trim()) {
     return
   }
 
   if (editingModelId.value) {
-    modelStore.updateModel(editingModelId.value, {
+    await modelStore.updateModel(editingModelId.value, {
       name: modelForm.name,
       apiUrl: modelForm.apiUrl,
       apiKey: modelForm.apiKey,
       params: modelForm.params
     })
   } else {
-    modelStore.createModel({
+    await modelStore.createModel({
       name: modelForm.name,
       apiUrl: modelForm.apiUrl,
       apiKey: modelForm.apiKey,
@@ -510,8 +510,8 @@ const saveModel = () => {
   showModelDialog.value = false
 }
 
-const deleteModel = (id: string) => {
-  modelStore.deleteModel(id)
+const deleteModel = async (id: string) => {
+  await modelStore.deleteModel(id)
 }
 
 // 模板相关方法
@@ -539,7 +539,7 @@ const editTemplate = async (template: PromptTemplate) => {
   templateError.value = ''
 }
 
-const saveTemplate = () => {
+const saveTemplate = async () => {
   if (!templateForm.name.trim()) {
     return
   }
@@ -553,14 +553,14 @@ const saveTemplate = () => {
   templateError.value = ''
 
   if (editingTemplateId.value) {
-    promptStore.updateTemplate(editingTemplateId.value, {
+    await promptStore.updateTemplate(editingTemplateId.value, {
       name: templateForm.name,
       template: templateForm.template,
       agentIds: templateForm.agentIds,
       prompts: templateForm.prompts
     })
   } else {
-    promptStore.createTemplate({
+    await promptStore.createTemplate({
       name: templateForm.name,
       template: templateForm.template,
       agentIds: templateForm.agentIds,
@@ -571,8 +571,8 @@ const saveTemplate = () => {
   showTemplateDialog.value = false
 }
 
-const deleteTemplate = (id: string) => {
-  promptStore.deleteTemplate(id)
+const deleteTemplate = async (id: string) => {
+  await promptStore.deleteTemplate(id)
 }
 
 // 模板内提示词相关方法
@@ -643,8 +643,8 @@ const saveSettings = () => {
   // 其他设置也已通过各自的watch实时保存
 }
 
-const resetSettings = () => {
-  settingsStore.resetSettings()
+const resetSettings = async () => {
+  await settingsStore.resetSettings()
   bgType.value = settingsStore.settings.background.type
   bgColor.value = settingsStore.settings.background.value
   bgImageUrl.value = settingsStore.settings.background.value

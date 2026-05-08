@@ -1,7 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Message, MessageRole, MessageVariant, ImageContent } from '@/types'
+import type { Message, MessageRole, ImageContent } from '@/types'
 import { generateId } from '@/utils/id'
+import { toStorable } from '@/utils/storable'
+import { db } from '@/db'
 
 export const useMessageStore = defineStore('message', () => {
   // State
@@ -19,25 +21,18 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   // Actions
-  const loadMessages = () => {
-    const stored = localStorage.getItem('easy-chat-messages')
-    if (stored) {
-      messages.value = JSON.parse(stored)
-    }
+  const loadMessages = async () => {
+    messages.value = await db.messages.toArray()
   }
 
-  const saveMessages = () => {
-    localStorage.setItem('easy-chat-messages', JSON.stringify(messages.value))
-  }
-
-  const createMessage = (
+  const createMessage = async (
     chatHistoryId: string,
     role: MessageRole,
     content: string,
     images?: ImageContent[],
     promptId?: string,
     meta?: Record<string, any>
-  ): Message => {
+  ): Promise<Message> => {
     const message: Message = {
       id: generateId(),
       chatHistoryId,
@@ -48,12 +43,12 @@ export const useMessageStore = defineStore('message', () => {
       meta,
       createdAt: Date.now()
     }
+    await db.messages.put(toStorable(message))
     messages.value.push(message)
-    saveMessages()
     return message
   }
 
-  const updateMessage = (id: string, data: Partial<Omit<Message, 'id' | 'createdAt'>>): boolean => {
+  const updateMessage = async (id: string, data: Partial<Omit<Message, 'id' | 'createdAt'>>, skipPersist = false): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === id)
     if (existing) {
       const updated: Message = {
@@ -67,54 +62,58 @@ export const useMessageStore = defineStore('message', () => {
         variants: data.variants ?? existing.variants,
         currentVariantIndex: data.currentVariantIndex ?? existing.currentVariantIndex
       }
+      // skipPersist 为 true 时跳过 IndexedDB 存储（用于流式更新优化性能）
+      if (!skipPersist) {
+        await db.messages.put(toStorable(updated))
+      }
       const index = messages.value.findIndex(m => m.id === id)
       if (index !== -1) {
-        messages.value[index] = updated
-        saveMessages()
+        messages.value.splice(index, 1, updated)
         return true
       }
     }
     return false
   }
 
-  const deleteMessage = (id: string) => {
+  const deleteMessage = async (id: string) => {
+    await db.messages.delete(id)
     const index = messages.value.findIndex(m => m.id === id)
     if (index !== -1) {
       messages.value.splice(index, 1)
-      saveMessages()
       return true
     }
     return false
   }
 
-  const deleteMessagesByChatId = (chatId: string) => {
+  const deleteMessagesByChatId = async (chatId: string) => {
+    const messagesToDelete = messages.value.filter(m => m.chatHistoryId === chatId)
+    await db.messages.bulkDelete(messagesToDelete.map(m => m.id))
     messages.value = messages.value.filter(m => m.chatHistoryId !== chatId)
-    saveMessages()
   }
 
   // 删除消息及之后的所有消息
-  const deleteMessageAndAfter = (chatId: string, messageId: string) => {
+  const deleteMessageAndAfter = async (chatId: string, messageId: string) => {
     const chatMessages = getMessagesByChatId(chatId)
     const targetIndex = chatMessages.findIndex(m => m.id === messageId)
     if (targetIndex === -1) return false
 
     const messagesToDelete = chatMessages.slice(targetIndex)
-    const idsToDelete = new Set(messagesToDelete.map(m => m.id))
+    const idsToDelete = messagesToDelete.map(m => m.id)
 
-    messages.value = messages.value.filter(m => !idsToDelete.has(m.id))
-    saveMessages()
+    await db.messages.bulkDelete(idsToDelete)
+    messages.value = messages.value.filter(m => !idsToDelete.includes(m.id))
     return true
   }
 
   // 添加消息变体（用于重新生成功能）
-  const addMessageVariant = (messageId: string, content: string, meta?: Record<string, any>): boolean => {
+  const addMessageVariant = async (messageId: string, content: string, meta?: Record<string, any>): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === messageId)
     if (!existing || existing.role !== 'assistant') return false
 
     // 如果是第一次添加变体，先将当前内容保存为第一个变体
     let variants = existing.variants || []
     if (variants.length === 0) {
-      const originalVariant: MessageVariant = {
+      const originalVariant = {
         id: generateId(),
         content: existing.content,
         meta: existing.meta,
@@ -123,7 +122,7 @@ export const useMessageStore = defineStore('message', () => {
       variants = [originalVariant]
     }
 
-    const variant: MessageVariant = {
+    const variant = {
       id: generateId(),
       content,
       meta,
@@ -138,24 +137,24 @@ export const useMessageStore = defineStore('message', () => {
       currentVariantIndex: variants.length - 1
     }
 
+    await db.messages.put(toStorable(updated))
     const index = messages.value.findIndex(m => m.id === messageId)
     if (index !== -1) {
-      messages.value[index] = updated
-      saveMessages()
+      messages.value.splice(index, 1, updated)
       return true
     }
     return false
   }
 
   // 创建新的空白变体用于重新生成（将当前内容保存为变体，切换到新的空白变体）
-  const createEmptyVariant = (messageId: string): boolean => {
+  const createEmptyVariant = async (messageId: string): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === messageId)
     if (!existing || existing.role !== 'assistant') return false
 
     // 如果是第一次添加变体，先将当前内容保存为第一个变体
     let variants = existing.variants || []
     if (variants.length === 0) {
-      const originalVariant: MessageVariant = {
+      const originalVariant = {
         id: generateId(),
         content: existing.content,
         meta: existing.meta,
@@ -165,7 +164,7 @@ export const useMessageStore = defineStore('message', () => {
     }
 
     // 创建新的空白变体
-    const emptyVariant: MessageVariant = {
+    const emptyVariant = {
       id: generateId(),
       content: '',
       meta: undefined,
@@ -182,17 +181,17 @@ export const useMessageStore = defineStore('message', () => {
       currentVariantIndex: variants.length - 1
     }
 
+    await db.messages.put(toStorable(updated))
     const index = messages.value.findIndex(m => m.id === messageId)
     if (index !== -1) {
-      messages.value[index] = updated
-      saveMessages()
+      messages.value.splice(index, 1, updated)
       return true
     }
     return false
   }
 
   // 更新当前变体的内容（用于流式更新）
-  const updateCurrentVariant = (messageId: string, content: string, meta?: Record<string, any>): boolean => {
+  const updateCurrentVariant = async (messageId: string, content: string, meta?: Record<string, any>): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === messageId)
     if (!existing || existing.role !== 'assistant' || !existing.variants) return false
 
@@ -217,17 +216,17 @@ export const useMessageStore = defineStore('message', () => {
       meta
     }
 
+    await db.messages.put(toStorable(updated))
     const index = messages.value.findIndex(m => m.id === messageId)
     if (index !== -1) {
-      messages.value[index] = updated
-      saveMessages()
+      messages.value.splice(index, 1, updated)
       return true
     }
     return false
   }
 
   // 切换消息变体
-  const switchVariant = (messageId: string, variantIndex: number): boolean => {
+  const switchVariant = async (messageId: string, variantIndex: number): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === messageId)
     if (!existing || !existing.variants || variantIndex < 0 || variantIndex >= existing.variants.length) {
       return false
@@ -243,10 +242,10 @@ export const useMessageStore = defineStore('message', () => {
       currentVariantIndex: variantIndex
     }
 
+    await db.messages.put(toStorable(updated))
     const index = messages.value.findIndex(m => m.id === messageId)
     if (index !== -1) {
-      messages.value[index] = updated
-      saveMessages()
+      messages.value.splice(index, 1, updated)
       return true
     }
     return false
@@ -268,7 +267,6 @@ export const useMessageStore = defineStore('message', () => {
     createEmptyVariant,
     updateCurrentVariant,
     switchVariant,
-    loadMessages,
-    saveMessages
+    loadMessages
   }
 })
