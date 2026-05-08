@@ -53,7 +53,20 @@
         </template>
         <!-- 正常消息显示 -->
         <template v-else>
-          <MarkdownRenderer :content="message.content" />
+          <!-- 思维链展示 -->
+          <div v-if="thoughtChainData.hasReasoning" class="thought-chain-container">
+            <div class="thought-chain-header" @click="toggleThoughtChain">
+              <el-icon class="thought-icon"><Loading /></el-icon>
+              <span class="thought-label">思考过程</span>
+              <el-icon class="toggle-icon" :class="{ expanded: isThoughtChainExpanded }">
+                <ArrowDown />
+              </el-icon>
+            </div>
+            <div v-show="isThoughtChainExpanded" class="thought-chain-content">
+              <MarkdownRenderer :content="thoughtChainData.reasoning" />
+            </div>
+          </div>
+          <MarkdownRenderer :content="thoughtChainData.hasReasoning ? thoughtChainData.content : message.content" />
           <!-- 消息图片列表 -->
           <div v-if="message.images && message.images.length > 0" class="message-images">
             <div
@@ -212,12 +225,15 @@ import {
   Connection,
   Lock,
   Timer,
-  Cpu
+  Cpu,
+  Loading,
+  ArrowDown
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { Message } from '@/types'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { useMessageStore } from '@/stores'
+import { parseThoughtChain } from '@/utils/thoughtChain'
 
 // 错误类型定义
 interface ErrorInfo {
@@ -370,6 +386,20 @@ const errorInfo = computed<ErrorInfo | null>(() => {
   const errorMsg = content.replace(/^抱歉，发生了错误:\s*/, '')
   return parseError(errorMsg)
 })
+
+// 思维链相关
+const thoughtChainData = computed(() => {
+  if (isUser.value || isErrorMessage.value) {
+    return { reasoning: '', content: '', hasReasoning: false }
+  }
+  return parseThoughtChain(props.message.content)
+})
+
+const isThoughtChainExpanded = ref(true)
+
+const toggleThoughtChain = () => {
+  isThoughtChainExpanded.value = !isThoughtChainExpanded.value
+}
 
 const formatTime = computed(() => {
   const date = new Date(props.message.createdAt)
@@ -898,5 +928,85 @@ defineExpose({
     width: 80px;
     height: 80px;
   }
+}
+
+/* 思维链样式 */
+.thought-chain-container {
+  margin-bottom: 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafafa;
+}
+
+.thought-chain-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+
+.thought-chain-header:hover {
+  background-color: #f0f0f0;
+}
+
+.thought-icon {
+  color: #909399;
+  font-size: 14px;
+  animation: rotate 1s linear infinite;
+  animation-play-state: paused;
+}
+
+.thought-chain-container:not(.collapsed) .thought-icon {
+  animation-play-state: running;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.thought-label {
+  font-size: 12px;
+  color: #666;
+  flex: 1;
+}
+
+.toggle-icon {
+  font-size: 12px;
+  color: #999;
+  transition: transform 0.2s;
+}
+
+.toggle-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.thought-chain-content {
+  padding: 0 12px 12px;
+  font-size: 13px;
+  color: #666;
+  border-top: 1px dashed #e8e8e8;
+  margin-top: 0;
+  padding-top: 12px;
+}
+
+.thought-chain-content :deep(.markdown-body) {
+  color: #666;
+}
+
+.thought-chain-content :deep(p) {
+  margin-bottom: 8px;
+}
+
+.thought-chain-content :deep(p:last-child) {
+  margin-bottom: 0;
 }
 </style>

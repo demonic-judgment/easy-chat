@@ -159,7 +159,7 @@
           <el-input
             v-model="agentForm.roleDescription"
             type="textarea"
-            :rows="3"
+            :rows="8"
             placeholder="描述智能体的角色和行为"
           />
         </el-form-item>
@@ -167,7 +167,7 @@
           <el-input
             v-model="agentForm.firstMessage"
             type="textarea"
-            :rows="2"
+            :rows="8"
             placeholder="对话开始时的第一条消息"
           />
         </el-form-item>

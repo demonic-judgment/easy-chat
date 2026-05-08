@@ -7,6 +7,7 @@ export const useAgentStore = defineStore('agent', () => {
   // State
   const agents = ref<Agent[]>([])
   const currentAgentId = ref<string | null>(null)
+  const agentUpdateTimestamp = ref<number>(0)
 
   // Getters
   const currentAgent = computed(() => {
@@ -60,6 +61,7 @@ export const useAgentStore = defineStore('agent', () => {
       const index = agents.value.findIndex(a => a.id === id)
       if (index !== -1) {
         agents.value[index] = updated
+        agentUpdateTimestamp.value = Date.now()
         saveAgents()
         return true
       }
@@ -100,6 +102,7 @@ export const useAgentStore = defineStore('agent', () => {
     agents,
     currentAgentId,
     currentAgent,
+    agentUpdateTimestamp,
     getAgentById,
     createAgent,
     updateAgent,

@@ -160,6 +160,32 @@ const startNewChat = () => {
   }
 }
 
+const syncAgentConfigToCurrentAgentChats = () => {
+  if (!agentStore.currentAgentId) return
+  const agent = agentStore.getAgentById(agentStore.currentAgentId)
+  if (!agent) return
+
+  const chats = chatStore.getChatsByAgentId(agentStore.currentAgentId)
+  for (const chat of chats) {
+    const chatMessages = messageStore.getMessagesByChatId(chat.id)
+    const systemMsg = chatMessages.find(m => m.role === 'system')
+    if (systemMsg) {
+      messageStore.updateMessage(systemMsg.id, { content: agent.roleDescription })
+    }
+
+    const firstAssistantMsg = chatMessages.find(m => m.role === 'assistant')
+    if (firstAssistantMsg && agent.firstMessage.trim()) {
+      messageStore.updateMessage(firstAssistantMsg.id, { content: agent.firstMessage })
+    }
+  }
+}
+
+watch(() => agentStore.agentUpdateTimestamp, (newTimestamp) => {
+  if (newTimestamp > 0) {
+    syncAgentConfigToCurrentAgentChats()
+  }
+})
+
 /**
  * 构建发送给模型的消息数组
  * 支持提示词模板和图片
