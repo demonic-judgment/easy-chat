@@ -8,6 +8,7 @@ import type {
   AppSettings,
   FloatingImage
 } from '@/types'
+import type { ImageRecord } from '@/utils/imageStorage'
 import { toStorable } from '@/utils/storable'
 
 export interface SettingsRecord {
@@ -29,17 +30,19 @@ export class EasyChatDatabase extends Dexie {
   models!: Table<ModelConfig, string>
   settings!: Table<SettingsRecord, string>
   floatingImages!: Table<FloatingImagesRecord, string>
+  images!: Table<ImageRecord, string>
 
   constructor() {
     super('EasyChatDB')
-    this.version(1).stores({
+    this.version(2).stores({
       agents: 'id, name, createdAt, updatedAt',
       chatHistories: 'id, agentId, title, createdAt, updatedAt',
       messages: 'id, chatHistoryId, role, createdAt',
       templates: 'id, name, createdAt, updatedAt',
       models: 'id, name, createdAt, updatedAt',
       settings: 'id',
-      floatingImages: 'id'
+      floatingImages: 'id',
+      images: 'id, messageId, createdAt'
     })
   }
 }

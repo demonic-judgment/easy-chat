@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Message, MessageRole, ImageContent } from '@/types'
+import type { Message, MessageRole, ImageReference } from '@/types'
 import { generateId } from '@/utils/id'
 import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
+import { storeImages, deleteImagesByMessageId, deleteImagesByMessageIds } from '@/utils/imageStorage'
 
 export const useMessageStore = defineStore('message', () => {
   // State
@@ -29,16 +30,26 @@ export const useMessageStore = defineStore('message', () => {
     chatHistoryId: string,
     role: MessageRole,
     content: string,
-    images?: ImageContent[],
+    imageFiles?: { file: File | Blob; name: string; type: string }[],
     promptId?: string,
     meta?: Record<string, any>
   ): Promise<Message> => {
+    const messageId = generateId()
+
+    // 存储图片到 IndexedDB，获取引用
+    let imageRefs: ImageReference[] | undefined
+    if (imageFiles && imageFiles.length > 0) {
+      const blobs = imageFiles.map(img => img.file)
+      const names = imageFiles.map(img => img.name)
+      imageRefs = await storeImages(blobs, messageId, names)
+    }
+
     const message: Message = {
-      id: generateId(),
+      id: messageId,
       chatHistoryId,
       role,
       content,
-      images,
+      images: imageRefs,
       promptId,
       meta,
       createdAt: Date.now()
@@ -76,6 +87,8 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   const deleteMessage = async (id: string) => {
+    // 删除关联的图片
+    await deleteImagesByMessageId(id)
     await db.messages.delete(id)
     const index = messages.value.findIndex(m => m.id === id)
     if (index !== -1) {
@@ -87,7 +100,11 @@ export const useMessageStore = defineStore('message', () => {
 
   const deleteMessagesByChatId = async (chatId: string) => {
     const messagesToDelete = messages.value.filter(m => m.chatHistoryId === chatId)
-    await db.messages.bulkDelete(messagesToDelete.map(m => m.id))
+    const idsToDelete = messagesToDelete.map(m => m.id)
+
+    // 删除关联的图片
+    await deleteImagesByMessageIds(idsToDelete)
+    await db.messages.bulkDelete(idsToDelete)
     messages.value = messages.value.filter(m => m.chatHistoryId !== chatId)
   }
 
@@ -100,6 +117,8 @@ export const useMessageStore = defineStore('message', () => {
     const messagesToDelete = chatMessages.slice(targetIndex)
     const idsToDelete = messagesToDelete.map(m => m.id)
 
+    // 删除关联的图片
+    await deleteImagesByMessageIds(idsToDelete)
     await db.messages.bulkDelete(idsToDelete)
     messages.value = messages.value.filter(m => !idsToDelete.includes(m.id))
     return true

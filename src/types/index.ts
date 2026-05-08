@@ -21,18 +21,27 @@ export interface ChatHistory {
 // 消息角色
 export type MessageRole = 'system' | 'user' | 'assistant'
 
-// 图片内容
+// 图片引用（存储在消息中，引用实际的图片数据）
+export interface ImageReference {
+  imageId: string
+  name?: string
+  type?: string
+  size?: number
+}
+
+// 图片内容（用于 UI 展示，包含 Blob URL 或 Data URL）
 export interface ImageContent {
   url: string
   name?: string
   type?: string
+  imageId?: string  // 关联的图片 ID
 }
 
 // 消息变体（用于重新生成功能）
 export interface MessageVariant {
   id: string
   content: string
-  images?: ImageContent[]
+  images?: ImageReference[]  // 使用引用而非直接存储
   meta?: Record<string, any>
   createdAt: number
 }
@@ -43,7 +52,7 @@ export interface Message {
   chatHistoryId: string
   role: MessageRole
   content: string
-  images?: ImageContent[] // 图片列表
+  images?: ImageReference[] // 图片引用列表（存储 imageId）
   promptId?: string
   meta?: Record<string, any>
   createdAt: number

@@ -9,9 +9,15 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import { migrateFromLocalStorage } from '@/db'
+import { registerServiceWorker } from '@/utils/serviceWorker'
 
 // 从 localStorage 迁移数据到 IndexedDB
 migrateFromLocalStorage().catch(console.error)
+
+// 注册 Service Worker（生产环境）
+if (import.meta.env.PROD) {
+  registerServiceWorker().catch(console.error)
+}
 
 const app = createApp(App)
 

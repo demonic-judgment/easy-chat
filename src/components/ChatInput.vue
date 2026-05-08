@@ -2,13 +2,13 @@
   <div class="chat-input-wrapper">
     <div class="chat-input-container">
       <!-- 已选图片预览 -->
-      <div v-if="selectedImages.length > 0" class="image-preview-list">
+      <div v-if="pendingImages.length > 0" class="image-preview-list">
         <div
-          v-for="(image, index) in selectedImages"
+          v-for="(image, index) in pendingImages"
           :key="index"
           class="image-preview-item"
         >
-          <img :src="image.url" :alt="image.name" />
+          <img :src="image.previewUrl" :alt="image.name" />
           <div class="image-preview-overlay">
             <span class="image-name">{{ image.name }}</span>
             <el-button
@@ -21,7 +21,7 @@
           </div>
         </div>
         <el-button
-          v-if="selectedImages.length < 9"
+          v-if="pendingImages.length < 9"
           class="add-image-btn"
           :icon="Plus"
           @click="triggerImageUpload"
@@ -41,7 +41,7 @@
       <div class="input-actions">
         <div class="action-left">
           <el-button
-            v-if="selectedImages.length === 0"
+            v-if="pendingImages.length === 0"
             :icon="Picture"
             @click="triggerImageUpload"
             class="image-btn"
@@ -95,23 +95,30 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Promotion, VideoPause, View, Picture, Plus, Close } from '@element-plus/icons-vue'
-import type { ImageContent } from '@/types'
+import type { ImageReference } from '@/types'
+
+interface PendingImage {
+  file: File
+  previewUrl: string
+  name: string
+  type: string
+}
 
 const props = defineProps<{
   loading: boolean
 }>()
 
 const emit = defineEmits<{
-  send: [message: string, images?: ImageContent[]]
+  send: [message: string, images?: PendingImage[]]
   pause: []
-  preview: [message: string, images?: ImageContent[]]
+  preview: [message: string, images?: PendingImage[]]
 }>()
 
 const inputMessage = ref('')
-const selectedImages = ref<ImageContent[]>([])
+const pendingImages = ref<PendingImage[]>([])
 const imageInputRef = ref<HTMLInputElement>()
 
-const canSend = computed(() => (inputMessage.value.trim() || selectedImages.value.length > 0) && !props.loading)
+const canSend = computed(() => (inputMessage.value.trim() || pendingImages.value.length > 0) && !props.loading)
 
 const handleKeydown = (e: KeyboardEvent) => {
   // 默认行为：Enter 换行，只有点击发送按钮才发送
@@ -129,22 +136,21 @@ const handleImageSelect = (e: Event) => {
   const files = target.files
   if (!files) return
 
-  const remainingSlots = 9 - selectedImages.value.length
+  const remainingSlots = 9 - pendingImages.value.length
   const filesToProcess = Math.min(files.length, remainingSlots)
 
   for (let i = 0; i < filesToProcess; i++) {
     const file = files[i]
     if (!file || !file.type.startsWith('image/')) continue
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      selectedImages.value.push({
-        url: event.target?.result as string,
-        name: file.name,
-        type: file.type
-      })
-    }
-    reader.readAsDataURL(file)
+    // 创建临时预览 URL
+    const previewUrl = URL.createObjectURL(file)
+    pendingImages.value.push({
+      file,
+      previewUrl,
+      name: file.name,
+      type: file.type
+    })
   }
 
   // 清空 input 以便可以重复选择相同文件
@@ -152,16 +158,28 @@ const handleImageSelect = (e: Event) => {
 }
 
 const removeImage = (index: number) => {
-  selectedImages.value.splice(index, 1)
+  const image = pendingImages.value[index]
+  if (image) {
+    URL.revokeObjectURL(image.previewUrl)
+    pendingImages.value.splice(index, 1)
+  }
+}
+
+const clearImages = () => {
+  // 清理所有预览 URL
+  for (const image of pendingImages.value) {
+    URL.revokeObjectURL(image.previewUrl)
+  }
+  pendingImages.value = []
 }
 
 const sendMessage = () => {
   const message = inputMessage.value.trim()
-  if ((!message && selectedImages.value.length === 0) || props.loading) return
+  if ((!message && pendingImages.value.length === 0) || props.loading) return
 
-  emit('send', message, selectedImages.value.length > 0 ? selectedImages.value : undefined)
+  emit('send', message, pendingImages.value.length > 0 ? pendingImages.value : undefined)
   inputMessage.value = ''
-  selectedImages.value = []
+  clearImages()
 }
 
 const handlePause = () => {
@@ -170,8 +188,8 @@ const handlePause = () => {
 
 const handlePreview = () => {
   const message = inputMessage.value.trim()
-  if (message || selectedImages.value.length > 0) {
-    emit('preview', message, selectedImages.value.length > 0 ? selectedImages.value : undefined)
+  if (message || pendingImages.value.length > 0) {
+    emit('preview', message, pendingImages.value.length > 0 ? pendingImages.value : undefined)
   }
 }
 </script>

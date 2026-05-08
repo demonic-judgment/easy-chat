@@ -75,7 +75,14 @@
               class="message-image-item"
               @click="previewImage(image)"
             >
-              <img :src="image.url" :alt="image.name || '图片'" />
+              <img
+                :src="getImageDisplayUrl(image)"
+                :alt="image.name || '图片'"
+                @error="handleImageError(image.imageId)"
+              />
+              <div v-if="!getImageDisplayUrl(image)" class="image-loading">
+                <el-icon><Loading /></el-icon>
+              </div>
             </div>
           </div>
           <!-- AI消息操作区：重新生成按钮和变体切换器 -->
@@ -209,11 +216,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { 
-  MoreFilled, 
-  Edit, 
-  Delete, 
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import {
+  MoreFilled,
+  Edit,
+  Delete,
   DeleteFilled,
   InfoFilled,
   ArrowLeft,
@@ -230,10 +237,11 @@ import {
   ArrowDown
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import type { Message } from '@/types'
+import type { Message, ImageContent } from '@/types'
 import MarkdownRenderer from './MarkdownRenderer.vue'
 import { useMessageStore } from '@/stores'
 import { parseThoughtChain } from '@/utils/thoughtChain'
+import { getImageUrl, revokeImageUrl } from '@/utils/imageStorage'
 
 // 错误类型定义
 interface ErrorInfo {
@@ -360,9 +368,56 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
+  // 清理 Blob URL
+  for (const url of Object.values(imageUrlMap.value)) {
+    if (url && !url.startsWith('data:')) {
+      URL.revokeObjectURL(url)
+    }
+  }
 })
 
 const isUser = computed(() => props.message.role === 'user')
+
+// 图片 URL 映射（imageId -> Blob URL）
+const imageUrlMap = ref<Record<string, string>>({})
+const isLoadingImages = ref(false)
+
+// 加载图片 URL
+const loadImageUrls = async () => {
+  if (!props.message.images || props.message.images.length === 0) return
+
+  isLoadingImages.value = true
+  try {
+    for (const imageRef of props.message.images) {
+      if (imageRef.imageId && !imageUrlMap.value[imageRef.imageId]) {
+        const url = await getImageUrl(imageRef.imageId)
+        if (url) {
+          imageUrlMap.value[imageRef.imageId] = url
+        }
+      }
+    }
+  } finally {
+    isLoadingImages.value = false
+  }
+}
+
+// 获取图片显示 URL
+const getImageDisplayUrl = (imageRef: { imageId?: string }): string => {
+  if (!imageRef.imageId) return ''
+  return imageUrlMap.value[imageRef.imageId] || ''
+}
+
+// 组件挂载时加载图片
+onMounted(() => {
+  loadImageUrls()
+})
+
+// 监听消息变化，重新加载图片
+watch(() => props.message.images, (newImages, oldImages) => {
+  if (newImages !== oldImages) {
+    loadImageUrls()
+  }
+}, { deep: true })
 
 // 检查消息是否为错误消息
 const isErrorMessage = computed(() => {
@@ -482,11 +537,26 @@ const confirmDelete = () => {
 // 元数据对话框
 const showMetaDialog = ref(false)
 
+// 图片加载错误处理
+const handleImageError = async (imageId?: string) => {
+  if (!imageId) return
+  // 尝试重新加载图片
+  const url = await getImageUrl(imageId)
+  if (url) {
+    imageUrlMap.value[imageId] = url
+  }
+}
+
 // 图片预览
-const previewImage = (image: { url: string; name?: string }) => {
+const previewImage = (image: { imageId?: string; name?: string }) => {
+  if (!image.imageId) return
+
+  const imageUrl = imageUrlMap.value[image.imageId]
+  if (!imageUrl) return
+
   // 使用 Element Plus 的图片预览功能
   const img = new Image()
-  img.src = image.url
+  img.src = imageUrl
   img.style.maxWidth = '90vw'
   img.style.maxHeight = '90vh'
   img.style.objectFit = 'contain'
@@ -917,6 +987,21 @@ defineExpose({
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 图片加载状态 */
+.image-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+  color: #999;
+  font-size: 24px;
 }
 
 /* 用户消息的图片样式 */

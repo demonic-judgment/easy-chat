@@ -99,8 +99,15 @@ import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import FloatingImageViewer from '@/components/FloatingImageViewer.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
-import type { MessageRole, Message, ImageContent } from '@/types'
+import type { MessageRole, Message, ImageContent, ImageReference } from '@/types'
 import { assembleMessages } from '@/utils/templateParser'
+import { getImageContentsForAI } from '@/utils/imageStorage'
+
+interface PendingImage {
+  file: File | Blob
+  name: string
+  type: string
+}
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
@@ -254,7 +261,7 @@ const buildMessages = (
 
 const streamingMessageId = ref<string | null>(null)
 
-const handleSendMessage = async (content: string, images?: ImageContent[]) => {
+const handleSendMessage = async (content: string, images?: PendingImage[]) => {
   if (!modelStore.currentModelId) return
 
   // 如果没有选中的会话，自动创建新对话
@@ -270,8 +277,8 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
     chatStore.setCurrentChat(chat.id)
   }
 
-  // 先保存用户消息
-  await messageStore.createMessage(chatStore.currentChatId!, 'user' as MessageRole, content, images)
+  // 先保存用户消息（图片会被存储到 IndexedDB）
+  const userMessage = await messageStore.createMessage(chatStore.currentChatId!, 'user' as MessageRole, content, images)
   scrollToBottom(true) // 用户发送消息时强制滚动到底部
   isLoading.value = true
   streamingMessageId.value = null
@@ -286,8 +293,14 @@ const handleSendMessage = async (content: string, images?: ImageContent[]) => {
     const agent = agentStore.currentAgent
     const roleDescription = agent?.roleDescription || ''
 
+    // 获取图片的 Data URL 用于发送给 AI
+    let imageContents: ImageContent[] | undefined
+    if (userMessage.images && userMessage.images.length > 0) {
+      imageContents = await getImageContentsForAI(userMessage.images)
+    }
+
     // 使用自定义模板构建消息
-    const messages = buildMessages(content, currentMessages.value, roleDescription)
+    const messages = buildMessages(content, currentMessages.value, roleDescription, imageContents)
 
     let modelParams = {}
     try {
@@ -597,7 +610,7 @@ watch(currentMessages, () => {
 }, { deep: true })
 
 // 预览请求体
-const handlePreviewRequest = (content: string, images?: ImageContent[]) => {
+const handlePreviewRequest = async (content: string, images?: PendingImage[]) => {
   if (!chatStore.currentChatId || !modelStore.currentModelId) return
 
   const model = modelStore.getModelById(modelStore.currentModelId)
@@ -610,8 +623,18 @@ const handlePreviewRequest = (content: string, images?: ImageContent[]) => {
   const agent = agentStore.currentAgent
   const roleDescription = agent?.roleDescription || ''
 
+  // 将 PendingImage 转换为 ImageContent 用于预览
+  let imageContents: ImageContent[] | undefined
+  if (images && images.length > 0) {
+    imageContents = images.map(img => ({
+      url: '[图片数据将在发送时转换]',
+      name: img.name,
+      type: img.type
+    }))
+  }
+
   // 构建消息（包含图片信息）
-  const messages = buildMessages(content, currentMessages.value, roleDescription, images)
+  const messages = buildMessages(content, currentMessages.value, roleDescription, imageContents)
 
   let modelParams = {}
   try {
