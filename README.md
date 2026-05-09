@@ -4,15 +4,16 @@
 
 ## 功能特性
 
-### 核心功能
+### 核心特色
 - **多智能体管理** - 创建多个 AI 智能体，每个智能体可配置独立的角色描述和首条消息
 - **提示词模板** - 支持自定义提示词模板，可指定适用智能体，灵活组合对话上下文
-- **图片对话** - 支持上传图片进行多模态对话，图片存储在 IndexedDB 中
+- **图片对话** - 支持上传图片进行多模态对话
 - **流式响应** - 支持 SSE 流式输出，实时显示 AI 回复
 - **消息变体** - 支持重新生成消息并在不同变体间切换
+- **无服务器** - 纯前端请求转发
 
 ### 数据管理
-- **本地存储** - 使用 IndexedDB 存储所有数据（智能体、聊天记录、消息、图片等）动从 localStorage 迁移历史数据到 IndexedDB
+- **本地存储** - 使用 IndexedDB 存储所有数据（智能体、聊天记录、消息、图片等）
 
 ### 界面定制
 - **自定义背景** - 支持纯色或图片背景，可调整透明度
@@ -198,51 +199,6 @@ npm run deploy
 1. 在设置面板切换到"数据管理"标签页
 2. 支持导出/导入 JSON 格式数据
 3. 支持备份到 Google Drive
-
-## API 接口
-
-### POST /api/chat
-
-聊天接口，支持流式和非流式响应。
-
-**请求体：**
-
-```json
-{
-  "apiUrl": "https://api.example.com/v1/chat/completions",
-  "apiKey": "your-api-key",
-  "messages": [
-    { "role": "system", "content": "You are a helpful assistant." },
-    { "role": "user", "content": "Hello!" }
-  ],
-  "params": {
-    "model": "gpt-4",
-    "temperature": 0.7,
-    "max_tokens": 2000
-  },
-  "stream": false
-}
-```
-
-**响应（非流式）：**
-
-```json
-{
-  "success": true,
-  "data": {
-    "content": "Hello! How can I help you today?",
-    "meta": { ... }
-  }
-}
-```
-
-**响应（流式）：**
-
-SSE 格式的事件流，每个事件包含 `content` 片段。
-
-### GET /api/test
-
-测试接口，返回服务状态。
 
 ## 配置说明
 
