@@ -74,14 +74,15 @@
                 <el-icon class="chat-icon"><ChatDotRound /></el-icon>
                 <span class="chat-title">{{ chat.title }}</span>
                 <el-dropdown trigger="click" @command="handleChatCommand($event, chat.id)">
-                  <el-button :icon="More" circle size="small" class="more-btn" @click.stop />
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="rename">重命名</el-dropdown-item>
-                      <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+                      <el-button :icon="More" circle size="small" class="more-btn" @click.stop />
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item command="rename">重命名</el-dropdown-item>
+                          <el-dropdown-item command="copy">复制</el-dropdown-item>
+                          <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
               </div>
               <div v-if="chatStore.getChatsByAgentId(agentStore.currentAgentId).length === 0" class="empty-chat">
                 暂无聊天记录
@@ -192,6 +193,7 @@ import {
   Delete
 } from '@element-plus/icons-vue'
 import { useAgentStore, useChatStore, useMessageStore } from '@/stores'
+import { getImageDataUrl } from '@/utils/imageStorage'
 
 const agentStore = useAgentStore()
 const chatStore = useChatStore()
@@ -280,6 +282,46 @@ const deleteChat = async (id: string) => {
   await chatStore.deleteChat(id)
 }
 
+const copyChat = async (id: string) => {
+  const chat = chatStore.getChatById(id)
+  if (!chat) return
+
+  // 创建新的聊天记录副本
+  const newChat = await chatStore.createChat(chat.agentId, `${chat.title} (副本)`)
+
+  // 复制该聊天记录下的所有消息
+  const originalMessages = messageStore.getMessagesByChatId(id)
+  for (const msg of originalMessages) {
+    // 复制图片（如果有）
+    let imageFiles: { file: File | Blob; name: string; type: string }[] | undefined
+    if (msg.images && msg.images.length > 0) {
+      imageFiles = []
+      for (const imgRef of msg.images) {
+        const dataUrl = await getImageDataUrl(imgRef.imageId)
+        if (dataUrl) {
+          // 将 Data URL 转换为 Blob
+          const response = await fetch(dataUrl)
+          const blob = await response.blob()
+          imageFiles.push({
+            file: blob,
+            name: imgRef.name || 'image',
+            type: imgRef.type || blob.type || 'image/png'
+          })
+        }
+      }
+    }
+
+    await messageStore.createMessage(
+      newChat.id,
+      msg.role,
+      msg.content,
+      imageFiles,
+      msg.promptId,
+      msg.meta
+    )
+  }
+}
+
 const handleChatCommand = async (command: string, chatId: string) => {
   if (command === 'rename') {
     const chat = chatStore.getChatById(chatId)
@@ -290,6 +332,8 @@ const handleChatCommand = async (command: string, chatId: string) => {
       await nextTick()
       renameForm.title = chat.title
     }
+  } else if (command === 'copy') {
+    await copyChat(chatId)
   } else if (command === 'delete') {
     deleteChat(chatId)
   }
