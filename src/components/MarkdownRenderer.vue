@@ -12,6 +12,24 @@ const props = defineProps<{
   content: string
 }>()
 
+// 引号高亮处理函数 - 在文本级别处理
+function highlightQuotes(text: string): string {
+  // 匹配各类引号对及其内容
+  // 英文双引号 "..."
+  text = text.replace(/(\u0022)([^\u0022]*?)(\u0022)/g, '<span class="quote-highlight">$1$2$3</span>')
+  // 英文单引号 '...'
+  text = text.replace(/(\u0027)([^\u0027]*?)(\u0027)/g, '<span class="quote-highlight">$1$2$3</span>')
+  // 中文双引号 "..."
+  text = text.replace(/(\u201C)([^\u201C\u201D]*?)(\u201D)/g, '<span class="quote-highlight">$1$2$3</span>')
+  // 中文单引号 '...'
+  text = text.replace(/(\u2018)([^\u2018\u2019]*?)(\u2019)/g, '<span class="quote-highlight">$1$2$3</span>')
+  // 中文单书名号 「...」
+  text = text.replace(/(\u300C)([^\u300C\u300D]*?)(\u300D)/g, '<span class="quote-highlight">$1$2$3</span>')
+  // 中文双书名号 『...』
+  text = text.replace(/(\u300E)([^\u300E\u300F]*?)(\u300F)/g, '<span class="quote-highlight">$1$2$3</span>')
+  return text
+}
+
 marked.use({
   gfm: true,
   breaks: true,
@@ -22,6 +40,10 @@ marked.use({
         ? hljs.highlight(text, { language }).value
         : hljs.highlightAuto(text).value
       return `<pre><code class="hljs language-${language}">${highlighted}</code></pre>`
+    },
+    text({ text }: { text: string }) {
+      // 在文本渲染时处理引号高亮
+      return highlightQuotes(text)
     }
   }
 })
@@ -199,5 +221,10 @@ const renderedContent = computed(() => {
 .markdown-body :deep(.hljs) {
   background: transparent;
   padding: 0;
+}
+
+/* 引号内容高亮 - 粗体 */
+.markdown-body :deep(.quote-highlight) {
+  font-weight: 550;
 }
 </style>
