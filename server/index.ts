@@ -227,7 +227,7 @@ async function handleStreamRequest(
     // 异步处理流
     (async () => {
       try {
-        let buffer = "";
+        let bufferParts: string[] = [];
         let accumulatedMeta: Record<string, any> | undefined;
         let hasSentDone = false;
 
@@ -235,9 +235,10 @@ async function handleStreamRequest(
           const { done, value } = await reader.read();
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          bufferParts.push(decoder.decode(value, { stream: true }));
+          const buffer = bufferParts.join("");
           const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
+          bufferParts = [lines.pop() || ""];
 
           for (const line of lines) {
             const trimmedLine = line.trim();
@@ -292,8 +293,9 @@ async function handleStreamRequest(
         }
 
         // 处理剩余缓冲区
-        if (buffer.trim()) {
-          const trimmedLine = buffer.trim();
+        const remainingBuffer = bufferParts.join("");
+        if (remainingBuffer.trim()) {
+          const trimmedLine = remainingBuffer.trim();
           if (trimmedLine.startsWith("data: ")) {
             const data = trimmedLine.slice(6);
             if (data !== "[DONE]") {
