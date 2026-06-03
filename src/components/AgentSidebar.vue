@@ -52,7 +52,7 @@
             type="primary"
             :icon="Plus"
             class="add-agent-btn"
-            @click="showAgentDialog = true"
+            @click="openCreateAgentDialog"
           >
             新建智能体
           </el-button>
@@ -125,7 +125,7 @@
     >
       <el-form :model="agentForm" label-width="80px">
         <el-form-item label="头像">
-          <div class="avatar-upload">
+          <div v-if="dialogReady" class="avatar-upload">
             <el-avatar
               :size="64"
               :icon="agentForm.avatar ? undefined : UserFilled"
@@ -135,11 +135,6 @@
               {{ agentForm.avatar ? undefined : (agentForm.name.charAt(0) || 'A').toUpperCase() }}
             </el-avatar>
             <div class="avatar-actions">
-              <el-input
-                v-model="agentForm.avatar"
-                placeholder="输入图片URL或上传图片"
-                clearable
-              />
               <el-button type="primary" size="small" @click="triggerFileUpload">
                 上传图片
               </el-button>
@@ -152,25 +147,30 @@
               />
             </div>
           </div>
+          <el-skeleton v-else :rows="2" animated />
         </el-form-item>
         <el-form-item label="名称">
           <el-input v-model="agentForm.name" placeholder="输入智能体名称" />
         </el-form-item>
         <el-form-item label="角色描述">
           <el-input
+            v-if="dialogReady"
             v-model="agentForm.roleDescription"
             type="textarea"
             :rows="8"
             placeholder="描述智能体的角色和行为"
           />
+          <el-skeleton v-else :rows="8" animated />
         </el-form-item>
         <el-form-item label="第一条消息">
           <el-input
+            v-if="dialogReady"
             v-model="agentForm.firstMessage"
             type="textarea"
             :rows="8"
             placeholder="对话开始时的第一条消息"
           />
+          <el-skeleton v-else :rows="8" animated />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -219,6 +219,7 @@ const showAgentDialog = ref(false)
 const showRenameDialog = ref(false)
 const editingAgentId = ref<string | null>(null)
 const editingChatId = ref<string | null>(null)
+const dialogReady = ref(false)
 
 const renameForm = reactive({
   title: ''
@@ -352,13 +353,18 @@ const handleAgentCommand = async (command: string, agentId: string) => {
     const agent = agentStore.getAgentById(agentId)
     if (agent) {
       editingAgentId.value = agentId
+      dialogReady.value = false
       showAgentDialog.value = true
-      // 等待 DOM 更新后再赋值，确保输入框正常响应
+      // 先显示对话框，再加载表单数据
       await nextTick()
       agentForm.name = agent.name
-      agentForm.roleDescription = agent.roleDescription
-      agentForm.firstMessage = agent.firstMessage
       agentForm.avatar = agent.avatar || ''
+      // 延迟加载大文本域，避免阻塞弹窗显示
+      setTimeout(() => {
+        agentForm.roleDescription = agent.roleDescription
+        agentForm.firstMessage = agent.firstMessage
+        dialogReady.value = true
+      }, 50)
     }
   } else if (command === 'delete') {
     const chats = chatStore.getChatsByAgentId(agentId)
@@ -368,6 +374,16 @@ const handleAgentCommand = async (command: string, agentId: string) => {
     }
     await agentStore.deleteAgent(agentId)
   }
+}
+
+const openCreateAgentDialog = () => {
+  editingAgentId.value = null
+  agentForm.name = ''
+  agentForm.roleDescription = ''
+  agentForm.firstMessage = ''
+  agentForm.avatar = ''
+  dialogReady.value = true
+  showAgentDialog.value = true
 }
 
 const saveAgent = async () => {
