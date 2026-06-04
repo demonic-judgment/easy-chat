@@ -3,15 +3,16 @@
  * 提供图片缓存和离线支持
  */
 
-const CACHE_NAME = 'easy-chat-cache-v1'
-const IMAGE_CACHE_NAME = 'easy-chat-images-v1'
+// 每次部署时更新这个版本号，确保缓存刷新
+// 注意：这个值会在构建时被 Vite 插件自动替换
+const CACHE_VERSION = '1780552695929-7b00358'
+const CACHE_NAME = `easy-chat-cache-${CACHE_VERSION}`
+const IMAGE_CACHE_NAME = `easy-chat-images-${CACHE_VERSION}`
 
-// 需要预缓存的核心资源
+// 需要预缓存的核心资源 - 只缓存入口文件，资源文件由构建工具处理hash
 const PRECACHE_ASSETS = [
   '/',
-  '/index.html',
-  '/assets/index.css',
-  '/assets/index.js'
+  '/index.html'
 ]
 
 // 安装时预缓存核心资源
@@ -43,7 +44,8 @@ self.addEventListener('activate', (event) => {
       .then((cacheNames) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME && cacheName !== IMAGE_CACHE_NAME) {
+            // 删除所有非当前版本的缓存
+            if (!cacheName.includes(CACHE_VERSION)) {
               console.log('[SW] Deleting old cache:', cacheName)
               return caches.delete(cacheName)
             }
@@ -51,7 +53,8 @@ self.addEventListener('activate', (event) => {
         )
       })
       .then(() => {
-        console.log('[SW] Activate completed')
+        console.log('[SW] Activate completed, version:', CACHE_VERSION)
+        // 立即接管所有客户端
         return self.clients.claim()
       })
   )
@@ -144,6 +147,28 @@ self.addEventListener('fetch', (event) => {
   // 跳过浏览器扩展请求
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return
 
+  // HTML 导航请求：网络优先，确保获取最新版本
+  if (request.mode === 'navigate' || request.destination === 'document') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // 更新缓存
+          const responseClone = response.clone()
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone)
+          })
+          return response
+        })
+        .catch(() => {
+          // 网络失败时回退缓存
+          return caches.match(request).then((cached) => {
+            return cached || caches.match('/index.html')
+          })
+        })
+    )
+    return
+  }
+
   // 图片请求使用缓存优先策略
   if (isImageRequest(request)) {
     event.respondWith(cacheFirstStrategy(request, IMAGE_CACHE_NAME))
@@ -156,7 +181,7 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // 其他资源使用网络优先策略
+  // 其他资源（JS/CSS）使用网络优先策略
   event.respondWith(networkFirstStrategy(request))
 })
 

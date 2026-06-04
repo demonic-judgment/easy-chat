@@ -43,13 +43,33 @@ export async function registerServiceWorker(): Promise<boolean> {
             // 有新版本可用
             state.isUpdateAvailable = true
             console.log('[SW] New version available')
-            // 可以在这里触发提示用户刷新
+            // 自动跳过等待，激活新版本
+            newWorker.postMessage({ type: 'SKIP_WAITING' })
           }
         })
       }
     })
 
-    // 检查更新
+    // 监听 controller 变化（新版本激活后）
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[SW] Controller changed, reloading...')
+      // 强制刷新以使用新版本
+      window.location.reload()
+    })
+
+    // 定期检查更新（每5分钟）
+    setInterval(() => {
+      registration.update()
+    }, 5 * 60 * 1000)
+
+    // 页面可见时检查更新
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        registration.update()
+      }
+    })
+
+    // 首次检查更新
     await registration.update()
 
     return true
