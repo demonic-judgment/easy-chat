@@ -61,7 +61,7 @@ export async function exportDataToFile(): Promise<void> {
   const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
 
-  const date = new Date().toISOString().split('T')[0]
+  const date = new Date().toISOString().replace(/[T:]/g, '-').split('.')[0]
   const filename = `easy-chat-backup-${date}.json`
 
   const a = document.createElement('a')
