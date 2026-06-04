@@ -6,9 +6,10 @@
         v-for="(image, index) in visibleImages"
         :key="image.id"
         class="image-window"
-        :class="{ 'is-dragging': dragState.imageId === image.id }"
+        :class="{ 'is-dragging': dragState.imageId === image.id, 'is-active': activeImageId === image.id }"
         :style="getWindowStyle(image)"
         @mousedown="handleWindowMouseDown($event, image)"
+        @click="setActiveImage(image.id)"
       >
         <!-- 悬浮关闭按钮 -->
         <div
@@ -204,6 +205,7 @@ interface ButtonDragState {
 
 const floatingImageStore = useFloatingImageStore()
 const showUploadDialog = ref(false)
+const activeImageId = ref<string | null>(null)
 
 // 按钮位置（使用 ref 以便响应式更新）
 const buttonPosition = ref({ x: 0, y: 50 }) // x: 0 表示右侧，y: 50 表示垂直居中百分比
@@ -298,6 +300,24 @@ const closeImage = async (id: string) => {
 // 切换图片显示/隐藏
 const toggleImageVisibility = async (id: string) => {
   await floatingImageStore.toggleVisibility(id)
+}
+
+// 设置激活的图片（显示手脚架）
+let activeImageTimer: ReturnType<typeof setTimeout> | null = null
+const setActiveImage = (id: string | null) => {
+  // 清除之前的定时器
+  if (activeImageTimer) {
+    clearTimeout(activeImageTimer)
+    activeImageTimer = null
+  }
+  activeImageId.value = id
+  // 如果设置了激活图片，3秒后自动隐藏
+  if (id) {
+    activeImageTimer = setTimeout(() => {
+      activeImageId.value = null
+      activeImageTimer = null
+    }, 3000)
+  }
 }
 
 // 将窗口置于最前
@@ -721,7 +741,7 @@ const endDragTouch = async () => {
   dragState.imageId = null
 }
 
-// 结束触摸调整大小
+// 处理触摸结束 - 调整大小
 const endResizeTouch = async () => {
   if (resizeState.isResizing && resizeState.imageId) {
     const image = floatingImages.value.find(img => img.id === resizeState.imageId)
@@ -739,6 +759,14 @@ const endResizeTouch = async () => {
   resizeState.direction = ''
 }
 
+// 点击空白处隐藏手脚架
+const handleClickOutside = (e: MouseEvent) => {
+  const target = e.target as HTMLElement
+  if (!target.closest('.image-window')) {
+    setActiveImage(null)
+  }
+}
+
 // 全局鼠标事件监听
 onMounted(() => {
   document.addEventListener('mousemove', handleDragMove)
@@ -747,6 +775,7 @@ onMounted(() => {
   document.addEventListener('mouseup', endDrag)
   document.addEventListener('mouseup', endResize)
   document.addEventListener('mouseup', endButtonDrag)
+  document.addEventListener('click', handleClickOutside)
   // 触摸事件
   document.addEventListener('touchmove', handleDragMoveTouch, { passive: false })
   document.addEventListener('touchmove', handleResizeMoveTouch, { passive: false })
@@ -761,6 +790,7 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', endDrag)
   document.removeEventListener('mouseup', endResize)
   document.removeEventListener('mouseup', endButtonDrag)
+  document.removeEventListener('click', handleClickOutside)
   // 触摸事件
   document.removeEventListener('touchmove', handleDragMoveTouch)
   document.removeEventListener('touchmove', handleResizeMoveTouch)
@@ -792,7 +822,8 @@ onUnmounted(() => {
   transition: box-shadow 0.3s ease;
 }
 
-.image-window:hover {
+.image-window:hover,
+.image-window.is-active {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
@@ -822,13 +853,8 @@ onUnmounted(() => {
   z-index: 20;
 }
 
-.image-window:hover .floating-close-btn {
-  opacity: 1;
-  transform: scale(1);
-}
-
 .floating-close-btn:hover {
-  transform: scale(1.1) !important;
+  transform: scale(1.1);
   box-shadow: 0 4px 12px rgba(255, 107, 107, 0.6);
 }
 
@@ -862,6 +888,15 @@ onUnmounted(() => {
   border-radius: 50%;
   cursor: pointer;
   z-index: 10;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s ease;
+}
+
+.image-window.is-active .floating-close-btn,
+.image-window.is-active .resize-handle {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .resize-handle:hover {
