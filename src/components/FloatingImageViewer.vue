@@ -109,6 +109,7 @@
         :show-file-list="false"
         accept="image/*"
         multiple
+        v-model:file-list="uploadFileList"
       >
         <el-icon class="upload-icon"><Upload /></el-icon>
         <div class="upload-text">
@@ -159,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import {
   Picture,
   PictureFilled,
@@ -206,6 +207,7 @@ interface ButtonDragState {
 const floatingImageStore = useFloatingImageStore()
 const showUploadDialog = ref(false)
 const activeImageId = ref<string | null>(null)
+const uploadFileList = ref<UploadFile[]>([])
 
 // 按钮位置（使用 ref 以便响应式更新）
 const buttonPosition = ref({ x: 0, y: 50 }) // x: 0 表示右侧，y: 50 表示垂直居中百分比
@@ -245,13 +247,13 @@ const resizeState = reactive<ResizeState>({
   aspectRatio: 1
 })
 
-// 处理文件上传
+// 处理文件上传（支持批量）
 const handleFileChange = (uploadFile: UploadFile) => {
   const file = uploadFile.raw
   if (!file) return
 
   if (!file.type.startsWith('image/')) {
-    ElMessage.error('请上传图片文件')
+    ElMessage.error(`跳过非图片文件: ${file.name}`)
     return
   }
 
@@ -259,6 +261,9 @@ const handleFileChange = (uploadFile: UploadFile) => {
   reader.onload = (e) => {
     const url = e.target?.result as string
     addImage(url, file.name)
+  }
+  reader.onerror = () => {
+    ElMessage.error(`读取文件失败: ${file.name}`)
   }
   reader.readAsDataURL(file)
 }
@@ -296,6 +301,13 @@ const addImage = async (url: string, name: string) => {
 const closeImage = async (id: string) => {
   await floatingImageStore.removeImage(id)
 }
+
+// 监听对话框关闭，清空上传文件列表
+watch(showUploadDialog, (newVal) => {
+  if (!newVal) {
+    uploadFileList.value = []
+  }
+})
 
 // 切换图片显示/隐藏
 const toggleImageVisibility = async (id: string) => {
