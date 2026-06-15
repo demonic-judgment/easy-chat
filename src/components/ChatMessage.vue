@@ -343,7 +343,6 @@ function parseError(errorMessage: string): ErrorInfo {
 const props = defineProps<{
   message: Message
   agentName?: string
-  agentAvatar?: string
   isLatestAssistantMessage?: boolean
 }>()
 

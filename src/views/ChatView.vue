@@ -10,14 +10,9 @@
         <header class="chat-header">
           <div class="chat-title">
             <template v-if="chatStore.currentChat && agentStore.currentAgent">
-              <el-avatar
-                :size="32"
-                :icon="agentStore.currentAgent.avatar ? undefined : UserFilled"
-                :src="agentStore.currentAgent.avatar"
-                class="header-avatar"
-              >
-                {{ agentStore.currentAgent.avatar ? undefined : agentStore.currentAgent.name.charAt(0).toUpperCase() }}
-              </el-avatar>
+              <div class="header-avatar">
+                {{ agentStore.currentAgent.name.charAt(0).toUpperCase() }}
+              </div>
               <span>{{ chatStore.currentChat.title }}</span>
             </template>
             <template v-else>
@@ -40,7 +35,6 @@
               :key="message.id"
               :message="message"
               :agent-name="agentStore.currentAgent?.name"
-              :agent-avatar="agentStore.currentAgent?.avatar"
               :is-latest-assistant-message="isLatestAssistantMessage(message, index)"
               @delete="handleDeleteMessage"
               @delete-with-below="handleDeleteWithBelow"
@@ -92,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { UserFilled, Setting } from '@element-plus/icons-vue'
+import { Setting } from '@element-plus/icons-vue'
 import AgentSidebar from '@/components/AgentSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
@@ -739,7 +733,17 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
 }
 
 .header-avatar {
+  width: 32px;
+  height: 32px;
   background: linear-gradient(135deg, #ff85a2, #ff6b9d);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .settings-btn {

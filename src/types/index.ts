@@ -4,7 +4,6 @@ export interface Agent {
   name: string
   roleDescription: string
   firstMessage: string
-  avatar?: string
   createdAt: number
   updatedAt: number
 }
