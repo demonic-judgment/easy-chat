@@ -2,6 +2,8 @@
 
 一个基于 Vue 3 + TypeScript + Cloudflare Workers 构建的轻量级 AI 聊天应用，支持多智能体管理、提示词模板、图片对话等功能。
 
+**云端体验版：** https://easy-chat.demonic-judgment.workers.dev/
+
 ## 功能特性
 
 ### 核心特色
