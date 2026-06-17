@@ -1,10 +1,20 @@
 import type { TemplateSegment, TemplateTag, ChatHistoryRange, Message, MessageRole, PromptItem } from '@/types'
 
+// 模板解析缓存
+const templateCache = new Map<string, TemplateSegment[]>()
+
 /**
  * 解析模板字符串，提取标签和文本
  * 支持标签: *role_description*, *chat_history*, *chat_history[-1]*, *chat_history[0,5]*, *chat_history[-6,-1]*, *user_reply*, *自定义1*, *自定义2* 等
+ * 
+ * 性能优化：使用缓存避免重复解析相同模板
  */
 export function parseTemplate(template: string): TemplateSegment[] {
+  // 检查缓存
+  const cached = templateCache.get(template)
+  if (cached) {
+    return cached
+  }
   const segments: TemplateSegment[] = []
   // 匹配 *tag* 或 *tag[range]* 模式，支持中文标签如 *自定义1*
   const regex = /\*([^\*\s\[\]]+)(?:\[([^\]]*)\])?\*/g
@@ -46,7 +56,25 @@ export function parseTemplate(template: string): TemplateSegment[] {
     }
   }
 
+  // 存入缓存
+  templateCache.set(template, segments)
+
   return segments
+}
+
+/**
+ * 清除模板缓存
+ * 在内存紧张或模板更新时调用
+ */
+export function clearTemplateCache(): void {
+  templateCache.clear()
+}
+
+/**
+ * 获取模板缓存大小
+ */
+export function getTemplateCacheSize(): number {
+  return templateCache.size
 }
 
 /**

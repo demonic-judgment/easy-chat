@@ -86,6 +86,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
+
 import { Setting } from '@element-plus/icons-vue'
 import AgentSidebar from '@/components/AgentSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
@@ -120,6 +121,39 @@ const previewRequestBody = ref<string>('')
 // 用于取消请求
 const abortController = ref<AbortController | null>(null)
 
+// 流式更新节流控制
+const streamingUpdateThrottle = 50 // 每 50ms 最多更新一次 UI
+let lastStreamingUpdate = 0
+let pendingContent = ''
+let pendingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
+
+// 节流的流式内容更新函数
+const throttledStreamingUpdate = async (messageId: string, content: string) => {
+  pendingContent = content
+  const now = Date.now()
+
+  // 清除之前的定时器
+  if (pendingUpdateTimeout) {
+    clearTimeout(pendingUpdateTimeout)
+    pendingUpdateTimeout = null
+  }
+
+  // 如果已经过了节流时间，立即更新
+  if (now - lastStreamingUpdate >= streamingUpdateThrottle) {
+    lastStreamingUpdate = now
+    await messageStore.updateMessage(messageId, { content }, true)
+    scrollToBottom()
+  } else {
+    // 否则延迟到下一个节流窗口
+    pendingUpdateTimeout = setTimeout(async () => {
+      lastStreamingUpdate = Date.now()
+      await messageStore.updateMessage(messageId, { content: pendingContent }, true)
+      scrollToBottom()
+      pendingUpdateTimeout = null
+    }, streamingUpdateThrottle - (now - lastStreamingUpdate))
+  }
+}
+
 const currentMessages = computed(() => {
   if (!chatStore.currentChatId) return []
   return messageStore.getMessagesByChatId(chatStore.currentChatId).filter(m => m.role !== 'system')
@@ -137,16 +171,26 @@ const isNearBottom = (): boolean => {
   return container.scrollHeight - container.scrollTop - container.clientHeight < threshold
 }
 
-const scrollToBottom = (force: boolean = false) => {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      // 只有当强制滚动或用户已经在底部附近时才滚动
-      if (force || isNearBottom()) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-      }
+// 使用 RAF 节流的滚动函数，减少强制回流
+const scrollToBottom = (() => {
+  let rafId: number | null = null
+
+  return (force: boolean = false) => {
+    if (rafId !== null) {
+      cancelAnimationFrame(rafId)
     }
-  })
-}
+
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      if (messagesContainer.value) {
+        // 只有当强制滚动或用户已经在底部附近时才滚动
+        if (force || isNearBottom()) {
+          messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+        }
+      }
+    })
+  }
+})()
 
 const startNewChat = async () => {
   if (!agentStore.currentAgentId) return
@@ -359,9 +403,8 @@ const handleSendMessage = async (content: string, images?: PendingImage[]) => {
 
           if (event.content) {
             fullContent += event.content
-            // 流式更新时跳过 IndexedDB 存储，提升性能
-            await messageStore.updateMessage(message.id, { content: fullContent }, true)
-            scrollToBottom()
+            // 使用节流的流式更新，减少 Vue 重渲染频率
+            await throttledStreamingUpdate(message.id, fullContent)
           }
 
           if (event.done) {

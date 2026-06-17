@@ -5,7 +5,7 @@
 
 // 每次部署时更新这个版本号，确保缓存刷新
 // 注意：这个值会在构建时被 Vite 插件自动替换
-const CACHE_VERSION = '1781511268191-8f67703'
+const CACHE_VERSION = '1781511928552-8c043b6'
 const CACHE_NAME = `easy-chat-cache-${CACHE_VERSION}`
 const IMAGE_CACHE_NAME = `easy-chat-images-${CACHE_VERSION}`
 

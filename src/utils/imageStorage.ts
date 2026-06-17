@@ -27,6 +27,8 @@ export interface ImageReference {
 
 // 内存中的 Blob URL 缓存
 const blobUrlCache = new Map<string, string>()
+// Data URL 缓存（用于发送到 AI）
+const dataUrlCache = new Map<string, string>()
 
 /**
  * 生成图片唯一 ID
@@ -68,7 +70,7 @@ export async function storeImage(
 }
 
 /**
- * 批量存储图片
+ * 批量存储图片（并行处理优化）
  * @param files 图片文件列表
  * @param messageId 关联的消息 ID
  * @returns 图片引用列表
@@ -78,16 +80,12 @@ export async function storeImages(
   messageId: string,
   names?: string[]
 ): Promise<ImageReference[]> {
-  const refs: ImageReference[] = []
+  // 并行处理所有图片存储
+  const promises = files
+    .map((file, i) => file ? storeImage(file, messageId, names?.[i]) : null)
+    .filter((p): p is Promise<ImageReference> => p !== null)
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    if (!file) continue
-    const ref = await storeImage(file, messageId, names?.[i])
-    refs.push(ref)
-  }
-
-  return refs
+  return Promise.all(promises)
 }
 
 /**
@@ -115,19 +113,24 @@ export async function getImageUrl(imageId: string): Promise<string | null> {
 }
 
 /**
- * 批量获取图片 URL
+ * 批量获取图片 URL（并行处理优化）
  * @param imageIds 图片 ID 列表
  * @returns URL 映射表
  */
 export async function getImageUrls(imageIds: string[]): Promise<Map<string, string>> {
   const result = new Map<string, string>()
 
-  for (const id of imageIds) {
-    const url = await getImageUrl(id)
+  // 并行获取所有图片 URL
+  const urls = await Promise.all(
+    imageIds.map(id => getImageUrl(id))
+  )
+
+  imageIds.forEach((id, index) => {
+    const url = urls[index]
     if (url) {
       result.set(id, url)
     }
-  }
+  })
 
   return result
 }
@@ -138,6 +141,11 @@ export async function getImageUrls(imageIds: string[]): Promise<Map<string, stri
  * @returns Base64 Data URL（AI API 需要）
  */
 export async function getImageDataUrl(imageId: string): Promise<string | null> {
+  // 检查缓存
+  if (dataUrlCache.has(imageId)) {
+    return dataUrlCache.get(imageId)!
+  }
+
   const record = await db.images.get(imageId)
   if (!record) {
     return null
@@ -145,7 +153,12 @@ export async function getImageDataUrl(imageId: string): Promise<string | null> {
 
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as string)
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      // 缓存 Data URL
+      dataUrlCache.set(imageId, dataUrl)
+      resolve(dataUrl)
+    }
     reader.onerror = reject
     reader.readAsDataURL(record.blob)
   })
@@ -159,20 +172,19 @@ export async function getImageDataUrl(imageId: string): Promise<string | null> {
 export async function getImageContentsForAI(
   refs: ImageReference[]
 ): Promise<{ url: string; name?: string; type?: string }[]> {
-  const contents = []
-
-  for (const ref of refs) {
-    const dataUrl = await getImageDataUrl(ref.imageId)
-    if (dataUrl) {
-      contents.push({
+  // 并行处理所有图片转换
+  const results = await Promise.all(
+    refs.map(async (ref) => {
+      const dataUrl = await getImageDataUrl(ref.imageId)
+      return dataUrl ? {
         url: dataUrl,
         name: ref.name,
         type: ref.type
-      })
-    }
-  }
+      } : null
+    })
+  )
 
-  return contents
+  return results.filter((item): item is NonNullable<typeof item> => item !== null)
 }
 
 /**
@@ -220,6 +232,8 @@ export function revokeImageUrl(imageId: string): void {
     URL.revokeObjectURL(url)
     blobUrlCache.delete(imageId)
   }
+  // 同时清理 Data URL 缓存
+  dataUrlCache.delete(imageId)
 }
 
 /**

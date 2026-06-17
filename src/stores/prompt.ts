@@ -4,6 +4,7 @@ import type { PromptTemplate, PromptItem } from '@/types'
 import { generateId } from '@/utils/id'
 import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
+import { clearTemplateCache } from '@/utils/templateParser'
 
 export const usePromptStore = defineStore('prompt', () => {
   // State - 存储模板列表
@@ -33,6 +34,8 @@ export const usePromptStore = defineStore('prompt', () => {
     }
     await db.templates.put(toStorable(template))
     templates.value.push(template)
+    // 清除模板缓存，确保新模板能被正确解析
+    clearTemplateCache()
     return template
   }
 
@@ -53,6 +56,10 @@ export const usePromptStore = defineStore('prompt', () => {
       const index = templates.value.findIndex(t => t.id === id)
       if (index !== -1) {
         templates.value.splice(index, 1, updated)
+        // 如果模板内容发生变化，清除缓存
+        if (data.template !== undefined && data.template !== existing.template) {
+          clearTemplateCache()
+        }
         return true
       }
     }
@@ -65,6 +72,8 @@ export const usePromptStore = defineStore('prompt', () => {
     const index = templates.value.findIndex(t => t.id === id)
     if (index !== -1) {
       templates.value.splice(index, 1)
+      // 清除模板缓存
+      clearTemplateCache()
       return true
     }
     return false

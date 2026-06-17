@@ -227,18 +227,44 @@ async function handleStreamRequest(
     // 异步处理流
     (async () => {
       try {
-        let bufferParts: string[] = [];
+        let buffer = "";
         let accumulatedMeta: Record<string, any> | undefined;
         let hasSentDone = false;
+        // 批量写入优化：累积多个事件后一次性写入
+        let pendingEvents: StreamEvent[] = [];
+        const BATCH_SIZE = 10; // 每累积 10 个事件或 50ms 写入一次
+        let batchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+        const flushPendingEvents = async () => {
+          if (pendingEvents.length === 0) return;
+
+          // 合并多个事件为一次写入
+          const data = pendingEvents
+            .map(event => `data: ${JSON.stringify(event)}\n\n`)
+            .join("");
+          await writer.write(encoder.encode(data));
+          pendingEvents = [];
+
+          if (batchTimeout) {
+            clearTimeout(batchTimeout);
+            batchTimeout = null;
+          }
+        };
+
+        const scheduleFlush = () => {
+          if (batchTimeout) return;
+          batchTimeout = setTimeout(() => {
+            flushPendingEvents();
+          }, 50);
+        };
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          bufferParts.push(decoder.decode(value, { stream: true }));
-          const buffer = bufferParts.join("");
+          buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
-          bufferParts = [lines.pop() || ""];
+          buffer = lines.pop() || "";
 
           for (const line of lines) {
             const trimmedLine = line.trim();
@@ -248,7 +274,7 @@ async function handleStreamRequest(
 
             // 处理流结束标记
             if (data === "[DONE]") {
-              // 发送最终的 done 事件，包含累积的 meta 数据
+              await flushPendingEvents();
               if (!hasSentDone) {
                 const event: StreamEvent = { done: true, meta: accumulatedMeta };
                 await writer.write(
@@ -264,10 +290,12 @@ async function handleStreamRequest(
               const content = extractStreamContent(parsed);
 
               if (content !== null) {
-                const event: StreamEvent = { content };
-                await writer.write(
-                  encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
-                );
+                pendingEvents.push({ content });
+                if (pendingEvents.length >= BATCH_SIZE) {
+                  await flushPendingEvents();
+                } else {
+                  scheduleFlush();
+                }
               }
 
               // 累积 meta 数据
@@ -280,6 +308,7 @@ async function handleStreamRequest(
               const isDone = checkStreamComplete(parsed);
               if (isDone && !hasSentDone) {
                 console.log("[Server] Stream complete, meta:", JSON.stringify(accumulatedMeta));
+                await flushPendingEvents();
                 const event: StreamEvent = { done: true, meta: accumulatedMeta };
                 await writer.write(
                   encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
@@ -293,9 +322,8 @@ async function handleStreamRequest(
         }
 
         // 处理剩余缓冲区
-        const remainingBuffer = bufferParts.join("");
-        if (remainingBuffer.trim()) {
-          const trimmedLine = remainingBuffer.trim();
+        if (buffer.trim()) {
+          const trimmedLine = buffer.trim();
           if (trimmedLine.startsWith("data: ")) {
             const data = trimmedLine.slice(6);
             if (data !== "[DONE]") {
@@ -303,10 +331,7 @@ async function handleStreamRequest(
                 const parsed = JSON.parse(data);
                 const content = extractStreamContent(parsed);
                 if (content !== null) {
-                  const event: StreamEvent = { content };
-                  await writer.write(
-                    encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
-                  );
+                  pendingEvents.push({ content });
                 }
                 // 累积 meta 数据
                 const meta = extractStreamMeta(parsed);
@@ -319,6 +344,8 @@ async function handleStreamRequest(
             }
           }
         }
+
+        await flushPendingEvents();
 
         // 确保发送 done 事件（如果还没有发送过）
         if (!hasSentDone) {
