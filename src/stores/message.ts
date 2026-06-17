@@ -210,7 +210,7 @@ export const useMessageStore = defineStore('message', () => {
   }
 
   // 更新当前变体的内容（用于流式更新）
-  const updateCurrentVariant = async (messageId: string, content: string, meta?: Record<string, any>): Promise<boolean> => {
+  const updateCurrentVariant = async (messageId: string, content: string, meta?: Record<string, any>, skipPersist = false): Promise<boolean> => {
     const existing = messages.value.find(m => m.id === messageId)
     if (!existing || existing.role !== 'assistant' || !existing.variants) return false
 
@@ -220,7 +220,7 @@ export const useMessageStore = defineStore('message', () => {
     // 更新变体内容
     const currentVariant = existing.variants[currentIndex]
     if (!currentVariant) return false
-    
+
     existing.variants[currentIndex] = {
       id: currentVariant.id,
       content,
@@ -235,7 +235,10 @@ export const useMessageStore = defineStore('message', () => {
       meta
     }
 
-    await db.messages.put(toStorable(updated))
+    // skipPersist 为 true 时跳过 IndexedDB 存储（用于流式更新优化性能）
+    if (!skipPersist) {
+      await db.messages.put(toStorable(updated))
+    }
     const index = messages.value.findIndex(m => m.id === messageId)
     if (index !== -1) {
       messages.value.splice(index, 1, updated)

@@ -506,6 +506,39 @@ const handleDeleteWithBelow = async (messageId: string) => {
   }
 }
 
+// 重新生成消息的节流控制
+const regenStreamingUpdateThrottle = 50 // 每 50ms 最多更新一次 UI
+let regenLastStreamingUpdate = 0
+let regenPendingContent = ''
+let regenPendingUpdateTimeout: ReturnType<typeof setTimeout> | null = null
+
+// 重新生成的节流流式更新函数
+const throttledRegenUpdate = async (messageId: string, content: string) => {
+  regenPendingContent = content
+  const now = Date.now()
+
+  // 清除之前的定时器
+  if (regenPendingUpdateTimeout) {
+    clearTimeout(regenPendingUpdateTimeout)
+    regenPendingUpdateTimeout = null
+  }
+
+  // 如果已经过了节流时间，立即更新
+  if (now - regenLastStreamingUpdate >= regenStreamingUpdateThrottle) {
+    regenLastStreamingUpdate = now
+    await messageStore.updateCurrentVariant(messageId, regenPendingContent, undefined, true)
+    scrollToBottom()
+  } else {
+    // 否则延迟到下一个节流窗口
+    regenPendingUpdateTimeout = setTimeout(async () => {
+      regenLastStreamingUpdate = Date.now()
+      await messageStore.updateCurrentVariant(messageId, regenPendingContent, undefined, true)
+      scrollToBottom()
+      regenPendingUpdateTimeout = null
+    }, regenStreamingUpdateThrottle - (now - regenLastStreamingUpdate))
+  }
+}
+
 // 重新生成消息
 const handleRegenerate = async (messageId: string) => {
   if (!chatStore.currentChatId || !modelStore.currentModelId) return
@@ -521,6 +554,14 @@ const handleRegenerate = async (messageId: string) => {
 
   const userMessage = chatMessages[messageIndex - 1]
   if (userMessage?.role !== 'user') return
+
+  // 重置节流状态
+  regenLastStreamingUpdate = 0
+  regenPendingContent = ''
+  if (regenPendingUpdateTimeout) {
+    clearTimeout(regenPendingUpdateTimeout)
+    regenPendingUpdateTimeout = null
+  }
 
   isLoading.value = true
   abortController.value = new AbortController()
@@ -593,9 +634,8 @@ const handleRegenerate = async (messageId: string) => {
 
           if (event.content) {
             fullContent += event.content
-            // 实时更新当前变体内容，实现打字机效果
-            await messageStore.updateCurrentVariant(messageId, fullContent)
-            scrollToBottom()
+            // 使用节流的流式更新，减少 Vue 重渲染频率
+            await throttledRegenUpdate(messageId, fullContent)
           }
 
           if (event.done) {
@@ -626,7 +666,13 @@ const handleRegenerate = async (messageId: string) => {
       }
     }
 
-    // 更新最终变体内容和元数据
+    // 清理可能残留的节流定时器
+    if (regenPendingUpdateTimeout) {
+      clearTimeout(regenPendingUpdateTimeout)
+      regenPendingUpdateTimeout = null
+    }
+
+    // 更新最终变体内容和元数据（此时才写入 IndexedDB）
     await messageStore.updateCurrentVariant(messageId, fullContent, meta)
     scrollToBottom()
 
@@ -639,6 +685,10 @@ const handleRegenerate = async (messageId: string) => {
   } finally {
     isLoading.value = false
     abortController.value = null
+    if (regenPendingUpdateTimeout) {
+      clearTimeout(regenPendingUpdateTimeout)
+      regenPendingUpdateTimeout = null
+    }
   }
 }
 
