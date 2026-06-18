@@ -4,6 +4,29 @@ import type { FloatingImage } from '@/types'
 import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
 
+// Debounce helper
+function debounce<T extends (...args: any[]) => Promise<any>>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout> | null = null
+  let pendingArgs: Parameters<T> | null = null
+  
+  return (...args: Parameters<T>) => {
+    pendingArgs = args
+    if (timer) {
+      clearTimeout(timer)
+    }
+    timer = setTimeout(() => {
+      timer = null
+      if (pendingArgs) {
+        fn(...pendingArgs)
+        pendingArgs = null
+      }
+    }, delay)
+  }
+}
+
 export const useFloatingImageStore = defineStore('floatingImage', () => {
   // State
   const images = ref<FloatingImage[]>([])
@@ -21,13 +44,17 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
     }
   }
 
-  const saveImages = async () => {
+  // 立即保存（用于重要操作如删除）
+  const saveImagesImmediate = async () => {
     await db.floatingImages.put({
       id: 'app-floating-images',
       images: toStorable(images.value),
       maxZIndex: maxZIndex.value
     })
   }
+
+  // Debounced 保存（用于频繁操作如拖拽、切换可见性）
+  const saveImages = debounce(saveImagesImmediate, 300)
 
   const addImage = async (image: Omit<FloatingImage, 'id' | 'zIndex'>) => {
     const newImage: FloatingImage = {
@@ -47,8 +74,11 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
       if (img.url.startsWith('blob:')) {
         URL.revokeObjectURL(img.url)
       }
+      if (img.thumbnailUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(img.thumbnailUrl)
+      }
       images.value.splice(index, 1)
-      await saveImages()
+      await saveImagesImmediate()  // 删除操作立即保存
     }
   }
 
@@ -92,10 +122,13 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
       if (img.url.startsWith('blob:')) {
         URL.revokeObjectURL(img.url)
       }
+      if (img.thumbnailUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(img.thumbnailUrl)
+      }
     })
     images.value = []
     maxZIndex.value = 1000
-    await saveImages()
+    await saveImagesImmediate()  // 清空操作立即保存
   }
 
   // 初始化时加载数据

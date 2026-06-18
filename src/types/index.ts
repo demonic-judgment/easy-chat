@@ -163,4 +163,5 @@ export interface FloatingImage {
   aspectRatio: number
   zIndex: number
   isVisible: boolean
+  thumbnailUrl?: string  // 缩略图 URL
 }

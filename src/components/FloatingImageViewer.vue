@@ -127,12 +127,17 @@
         <h4>已上传</h4>
         <div class="image-list">
           <div
-            v-for="image in floatingImages"
+            v-for="image in lazyLoadImages"
             :key="image.id"
             class="image-item"
             :class="{ 'is-hidden': !image.isVisible }"
           >
-            <img :src="image.url" :alt="image.name" />
+            <img 
+              :src="image.thumbnailUrl || image.url" 
+              :alt="image.name" 
+              loading="lazy"
+              @error="handleImageError($event, image)"
+            />
             <div class="image-controls">
               <el-switch
                 :model-value="image.isVisible"
@@ -225,6 +230,20 @@ const buttonDragState = reactive<ButtonDragState>({
 const visibleImages = computed(() => floatingImageStore.visibleImages())
 const floatingImages = computed(() => floatingImageStore.images)
 
+// 懒加载图片列表
+const lazyLoadImages = computed(() => {
+  return floatingImages.value
+})
+
+// 图片加载错误处理
+const handleImageError = (e: Event, image: FloatingImage) => {
+  const img = e.target as HTMLImageElement
+  // 如果缩略图加载失败，使用原图
+  if (img.src !== image.url) {
+    img.src = image.url
+  }
+}
+
 const dragState = reactive<DragState>({
   isDragging: false,
   imageId: null,
@@ -247,8 +266,67 @@ const resizeState = reactive<ResizeState>({
   aspectRatio: 1
 })
 
+// 生成缩略图
+const generateThumbnail = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    
+    img.onload = () => {
+      URL.revokeObjectURL(url) // 释放临时 URL
+      
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        reject(new Error('无法创建 Canvas 上下文'))
+        return
+      }
+      
+      const maxSize = 256
+      let { width, height } = img
+      
+      // 计算缩放比例，保持宽高比
+      if (width > height) {
+        if (width > maxSize) {
+          height = Math.round((height * maxSize) / width)
+          width = maxSize
+        }
+      } else {
+        if (height > maxSize) {
+          width = Math.round((width * maxSize) / height)
+          height = maxSize
+        }
+      }
+      
+      canvas.width = width
+      canvas.height = height
+      ctx.drawImage(img, 0, 0, width, height)
+      
+      // 输出为 JPEG 格式，质量 0.8
+      const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
+      resolve(thumbnailUrl)
+    }
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('图片加载失败'))
+    }
+    
+    img.src = url
+  })
+}
+
+// requestIdleCallback fallback
+const scheduleIdleTask = (callback: () => void, options?: { timeout?: number }) => {
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(callback, options)
+  } else {
+    setTimeout(callback, options?.timeout || 0)
+  }
+}
+
 // 处理文件上传（支持批量）
-const handleFileChange = (uploadFile: UploadFile) => {
+const handleFileChange = async (uploadFile: UploadFile) => {
   const file = uploadFile.raw
   if (!file) return
 
@@ -257,22 +335,43 @@ const handleFileChange = (uploadFile: UploadFile) => {
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const url = e.target?.result as string
-    addImage(url, file.name)
+  try {
+    // 先读取原图并添加（不等待缩略图）
+    const originalUrl = await readFileAsDataURL(file)
+    const newImage = await addImage(originalUrl, file.name)
+    
+    // 后台异步生成缩略图，不阻塞 UI
+    scheduleIdleTask(() => {
+      generateThumbnail(file).then(thumbnailUrl => {
+        floatingImageStore.updateImage(newImage.id, { thumbnailUrl })
+      }).catch(() => {
+        // 缩略图生成失败，忽略
+      })
+    }, { timeout: 1000 })
+  } catch (error) {
+    ElMessage.error(`处理文件失败: ${file.name}`)
   }
-  reader.onerror = () => {
-    ElMessage.error(`读取文件失败: ${file.name}`)
-  }
-  reader.readAsDataURL(file)
+}
+
+// 读取文件为 Data URL
+const readFileAsDataURL = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      resolve(e.target?.result as string)
+    }
+    reader.onerror = () => {
+      reject(new Error('文件读取失败'))
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 // 检测是否为移动端
 const isMobile = () => window.innerWidth <= 768
 
 // 添加图片
-const addImage = async (url: string, name: string) => {
+const addImage = async (url: string, name: string, thumbnailUrl?: string) => {
   // 计算初始位置（错开显示）
   const offset = floatingImages.value.length * 30
 
@@ -283,7 +382,7 @@ const addImage = async (url: string, name: string) => {
   const initialWidth = mobile ? Math.min(250, window.innerWidth - 40) : 300
   const initialHeight = mobile ? 180 : 200
 
-  await floatingImageStore.addImage({
+  return await floatingImageStore.addImage({
     url,
     name,
     x: initialX,
@@ -293,7 +392,8 @@ const addImage = async (url: string, name: string) => {
     naturalWidth: 0,
     naturalHeight: 0,
     aspectRatio: 1,
-    isVisible: true
+    isVisible: true,
+    thumbnailUrl
   })
 }
 
