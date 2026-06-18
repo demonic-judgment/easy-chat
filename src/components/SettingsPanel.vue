@@ -131,8 +131,8 @@
           <el-form label-width="120px">
             <el-form-item label="背景类型">
               <el-radio-group v-model="bgType">
-                <el-radio-button label="color">纯色</el-radio-button>
-                <el-radio-button label="image">图片</el-radio-button>
+                <el-radio-button value="color">纯色</el-radio-button>
+                <el-radio-button value="image">图片</el-radio-button>
               </el-radio-group>
             </el-form-item>
 
@@ -304,9 +304,9 @@
         </el-form-item>
         <el-form-item label="角色">
           <el-radio-group v-model="promptForm.role">
-            <el-radio-button label="system">System</el-radio-button>
-            <el-radio-button label="user">User</el-radio-button>
-            <el-radio-button label="assistant">Assistant</el-radio-button>
+            <el-radio-button value="system">System</el-radio-button>
+            <el-radio-button value="user">User</el-radio-button>
+            <el-radio-button value="assistant">Assistant</el-radio-button>
           </el-radio-group>
         </el-form-item>
         <el-form-item label="内容">

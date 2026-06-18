@@ -148,8 +148,8 @@
       <!-- 恢复选项 -->
       <div v-if="selectedFile" class="restore-options">
         <el-radio-group v-model="restoreMode">
-          <el-radio label="replace">完全替换现有数据</el-radio>
-          <el-radio label="merge">合并数据（跳过重复项）</el-radio>
+          <el-radio value="replace">完全替换现有数据</el-radio>
+          <el-radio value="merge">合并数据（跳过重复项）</el-radio>
         </el-radio-group>
 
         <div class="restore-actions">
@@ -211,8 +211,8 @@
     >
       <p>请选择恢复方式：</p>
       <el-radio-group v-model="driveRestoreMode" class="drive-restore-options">
-        <el-radio label="replace">完全替换现有数据</el-radio>
-        <el-radio label="merge">合并数据（跳过重复项）</el-radio>
+        <el-radio value="replace">完全替换现有数据</el-radio>
+        <el-radio value="merge">合并数据（跳过重复项）</el-radio>
       </el-radio-group>
       <template #footer>
         <el-button @click="showDriveRestoreOptions = false">取消</el-button>
