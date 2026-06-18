@@ -129,6 +129,7 @@
           <div
             v-for="image in lazyLoadImages"
             :key="image.id"
+            v-memo="[image.isVisible, image.thumbnailUrl]"
             class="image-item"
             :class="{ 'is-hidden': !image.isVisible }"
           >
@@ -266,14 +267,14 @@ const resizeState = reactive<ResizeState>({
   aspectRatio: 1
 })
 
-// 生成缩略图
-const generateThumbnail = (file: File): Promise<string> => {
+// 生成缩略图（返回 Blob）
+const generateThumbnail = (file: File): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
     
     img.onload = () => {
-      URL.revokeObjectURL(url) // 释放临时 URL
+      URL.revokeObjectURL(url)
       
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -302,9 +303,18 @@ const generateThumbnail = (file: File): Promise<string> => {
       canvas.height = height
       ctx.drawImage(img, 0, 0, width, height)
       
-      // 输出为 JPEG 格式，质量 0.8
-      const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.8)
-      resolve(thumbnailUrl)
+      // 输出为 JPEG Blob
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob)
+          } else {
+            reject(new Error('缩略图生成失败'))
+          }
+        },
+        'image/jpeg',
+        0.8
+      )
     }
     
     img.onerror = () => {
@@ -336,13 +346,15 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   }
 
   try {
-    // 先读取原图并添加（不等待缩略图）
-    const originalUrl = await readFileAsDataURL(file)
-    const newImage = await addImage(originalUrl, file.name)
+    // 先创建原图的 Blob URL
+    const originalBlobUrl = URL.createObjectURL(file)
+    const newImage = await addImage(originalBlobUrl, file.name)
     
     // 后台异步生成缩略图，不阻塞 UI
     scheduleIdleTask(() => {
-      generateThumbnail(file).then(thumbnailUrl => {
+      generateThumbnail(file).then(thumbBlob => {
+        // 将缩略图 Blob 转换为 Blob URL
+        const thumbnailUrl = URL.createObjectURL(thumbBlob)
         floatingImageStore.updateImage(newImage.id, { thumbnailUrl })
       }).catch(() => {
         // 缩略图生成失败，忽略
@@ -351,20 +363,6 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   } catch (error) {
     ElMessage.error(`处理文件失败: ${file.name}`)
   }
-}
-
-// 读取文件为 Data URL
-const readFileAsDataURL = (file: File): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      resolve(e.target?.result as string)
-    }
-    reader.onerror = () => {
-      reject(new Error('文件读取失败'))
-    }
-    reader.readAsDataURL(file)
-  })
 }
 
 // 检测是否为移动端

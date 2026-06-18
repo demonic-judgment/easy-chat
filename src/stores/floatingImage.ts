@@ -1,31 +1,48 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { FloatingImage } from '@/types'
-import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
+
+// 存储中的图片数据（用于序列化）
+interface StoredImage {
+  id: string
+  url: string
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  naturalWidth: number
+  naturalHeight: number
+  aspectRatio: number
+  zIndex: number
+  isVisible: boolean
+  thumbnailUrl?: string
+}
 
 // Debounce helper
 function debounce<T extends (...args: any[]) => Promise<any>>(
   fn: T,
   delay: number
-): (...args: Parameters<T>) => void {
+): (...args: Parameters<T>) => Promise<void> {
   let timer: ReturnType<typeof setTimeout> | null = null
-  let pendingArgs: Parameters<T> | null = null
   
   return (...args: Parameters<T>) => {
-    pendingArgs = args
-    if (timer) {
-      clearTimeout(timer)
-    }
-    timer = setTimeout(() => {
-      timer = null
-      if (pendingArgs) {
-        fn(...pendingArgs)
-        pendingArgs = null
+    return new Promise((resolve) => {
+      if (timer) {
+        clearTimeout(timer)
       }
-    }, delay)
+      timer = setTimeout(async () => {
+        timer = null
+        await fn(...args)
+        resolve()
+      }, delay)
+    })
   }
 }
+
+// Blob URL 管理
+const blobUrlRegistry = new Map<string, string>() // id_type -> blobUrl
 
 export const useFloatingImageStore = defineStore('floatingImage', () => {
   // State
@@ -35,11 +52,40 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
   // Getters
   const visibleImages = () => images.value.filter(img => img.isVisible)
 
+  // 将存储数据转换为图片对象（重建 Blob URL）
+  const fromStored = (stored: StoredImage): FloatingImage => {
+    return {
+      ...stored,
+      // 保持原 URL（data: 或 blob: 都保留）
+      url: stored.url,
+      thumbnailUrl: stored.thumbnailUrl
+    }
+  }
+
+  // 将图片对象转换为可存储的数据
+  const toStored = (img: FloatingImage): StoredImage => {
+    return {
+      id: img.id,
+      url: img.url,
+      name: img.name,
+      x: img.x,
+      y: img.y,
+      width: img.width,
+      height: img.height,
+      naturalWidth: img.naturalWidth,
+      naturalHeight: img.naturalHeight,
+      aspectRatio: img.aspectRatio,
+      zIndex: img.zIndex,
+      isVisible: img.isVisible,
+      thumbnailUrl: img.thumbnailUrl
+    }
+  }
+
   // Actions
   const loadImages = async () => {
     const record = await db.floatingImages.get('app-floating-images')
     if (record) {
-      images.value = record.images || []
+      images.value = (record.images || []).map(fromStored)
       maxZIndex.value = record.maxZIndex || 1000
     }
   }
@@ -48,7 +94,7 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
   const saveImagesImmediate = async () => {
     await db.floatingImages.put({
       id: 'app-floating-images',
-      images: toStorable(images.value),
+      images: images.value.map(toStored),
       maxZIndex: maxZIndex.value
     })
   }
@@ -63,7 +109,7 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
       zIndex: ++maxZIndex.value
     }
     images.value.push(newImage)
-    await saveImages()
+    await saveImagesImmediate()
     return newImage
   }
 
@@ -71,14 +117,19 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
     const index = images.value.findIndex(img => img.id === id)
     if (index > -1) {
       const img = images.value[index]!
-      if (img.url.startsWith('blob:')) {
-        URL.revokeObjectURL(img.url)
+      // 释放 Blob URL
+      const urlKey = `${img.id}_url`
+      const thumbKey = `${img.id}_thumb`
+      if (blobUrlRegistry.has(urlKey)) {
+        URL.revokeObjectURL(blobUrlRegistry.get(urlKey)!)
+        blobUrlRegistry.delete(urlKey)
       }
-      if (img.thumbnailUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(img.thumbnailUrl)
+      if (blobUrlRegistry.has(thumbKey)) {
+        URL.revokeObjectURL(blobUrlRegistry.get(thumbKey)!)
+        blobUrlRegistry.delete(thumbKey)
       }
       images.value.splice(index, 1)
-      await saveImagesImmediate()  // 删除操作立即保存
+      await saveImagesImmediate()
     }
   }
 
@@ -118,17 +169,34 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
   }
 
   const clearAll = async () => {
+    // 释放所有 Blob URL
     images.value.forEach(img => {
-      if (img.url.startsWith('blob:')) {
-        URL.revokeObjectURL(img.url)
+      const urlKey = `${img.id}_url`
+      const thumbKey = `${img.id}_thumb`
+      if (blobUrlRegistry.has(urlKey)) {
+        URL.revokeObjectURL(blobUrlRegistry.get(urlKey)!)
+        blobUrlRegistry.delete(urlKey)
       }
-      if (img.thumbnailUrl?.startsWith('blob:')) {
-        URL.revokeObjectURL(img.thumbnailUrl)
+      if (blobUrlRegistry.has(thumbKey)) {
+        URL.revokeObjectURL(blobUrlRegistry.get(thumbKey)!)
+        blobUrlRegistry.delete(thumbKey)
       }
     })
     images.value = []
     maxZIndex.value = 1000
-    await saveImagesImmediate()  // 清空操作立即保存
+    await saveImagesImmediate()
+  }
+
+  // 注册 Blob URL（用于从 Blob 创建）
+  const registerBlobUrl = (id: string, type: 'url' | 'thumb', blob: Blob): string => {
+    const key = `${id}_${type}`
+    // 如果已存在，先释放
+    if (blobUrlRegistry.has(key)) {
+      URL.revokeObjectURL(blobUrlRegistry.get(key)!)
+    }
+    const blobUrl = URL.createObjectURL(blob)
+    blobUrlRegistry.set(key, blobUrl)
+    return blobUrl
   }
 
   // 初始化时加载数据
@@ -140,12 +208,14 @@ export const useFloatingImageStore = defineStore('floatingImage', () => {
     visibleImages,
     loadImages,
     saveImages,
+    saveImagesImmediate,
     addImage,
     removeImage,
     updateImage,
     batchUpdateImages,
     toggleVisibility,
     bringToFront,
-    clearAll
+    clearAll,
+    registerBlobUrl
   }
 })
