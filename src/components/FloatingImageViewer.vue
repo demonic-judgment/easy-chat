@@ -9,6 +9,7 @@
         :class="{ 'is-dragging': dragState.imageId === image.id, 'is-active': activeImageId === image.id }"
         :style="getWindowStyle(image)"
         @mousedown="handleWindowMouseDown($event, image)"
+        @touchstart="handleWindowTouchStart($event, image)"
         @click="setActiveImage(image.id)"
       >
         <!-- 悬浮关闭按钮 -->
@@ -24,7 +25,7 @@
           class="window-content"
           :style="getContentStyle(image)"
           @mousedown="startDrag($event, image)"
-          @touchstart.prevent="startDragTouch($event, image)"
+          @touchstart="startDragTouch($event, image)"
         >
           <img
             :src="image.url"
@@ -38,22 +39,22 @@
         <div
           class="resize-handle resize-se"
           @mousedown="startResize($event, image, 'se')"
-          @touchstart.prevent="startResizeTouch($event, image, 'se')"
+          @touchstart="startResizeTouch($event, image, 'se')"
         />
         <div
           class="resize-handle resize-sw"
           @mousedown="startResize($event, image, 'sw')"
-          @touchstart.prevent="startResizeTouch($event, image, 'sw')"
+          @touchstart="startResizeTouch($event, image, 'sw')"
         />
         <div
           class="resize-handle resize-ne"
           @mousedown="startResize($event, image, 'ne')"
-          @touchstart.prevent="startResizeTouch($event, image, 'ne')"
+          @touchstart="startResizeTouch($event, image, 'ne')"
         />
         <div
           class="resize-handle resize-nw"
           @mousedown="startResize($event, image, 'nw')"
-          @touchstart.prevent="startResizeTouch($event, image, 'nw')"
+          @touchstart="startResizeTouch($event, image, 'nw')"
         />
       </div>
     </TransitionGroup>
@@ -68,9 +69,7 @@
       size="large"
       :style="getButtonStyle()"
       @mousedown="startButtonDrag"
-      @touchstart.prevent="handleButtonTouchStart"
-      @touchmove.prevent="handleButtonTouchMove"
-      @touchend.prevent="handleButtonTouchEnd"
+      @touchstart="startButtonDragTouch"
       @click="handleButtonClick"
     />
 
@@ -83,9 +82,7 @@
       size="large"
       :style="getButtonStyle()"
       @mousedown="startButtonDrag"
-      @touchstart.prevent="handleButtonTouchStart"
-      @touchmove.prevent="handleButtonTouchMove"
-      @touchend.prevent="handleButtonTouchEnd"
+      @touchstart="startButtonDragTouch"
       @click="handleButtonClick"
     >
       <span class="image-count">{{ floatingImages.length }}</span>
@@ -267,8 +264,22 @@ const resizeState = reactive<ResizeState>({
   aspectRatio: 1
 })
 
-// 生成缩略图（返回 Blob）
-const generateThumbnail = (file: File): Promise<Blob> => {
+// 将 File 转换为 Base64 Data URL（持久化存储）
+const fileToDataURL = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      resolve(reader.result as string)
+    }
+    reader.onerror = () => {
+      reject(new Error('文件读取失败'))
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+// 生成缩略图（返回 Base64 Data URL）
+const generateThumbnail = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -303,18 +314,8 @@ const generateThumbnail = (file: File): Promise<Blob> => {
       canvas.height = height
       ctx.drawImage(img, 0, 0, width, height)
       
-      // 输出为 JPEG Blob
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error('缩略图生成失败'))
-          }
-        },
-        'image/jpeg',
-        0.8
-      )
+      // 输出为 Base64 Data URL（持久化存储）
+      resolve(canvas.toDataURL('image/jpeg', 0.8))
     }
     
     img.onerror = () => {
@@ -346,16 +347,14 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   }
 
   try {
-    // 先创建原图的 Blob URL
-    const originalBlobUrl = URL.createObjectURL(file)
-    const newImage = await addImage(originalBlobUrl, file.name)
+    // 将原图转换为 Base64 Data URL（持久化存储）
+    const originalDataURL = await fileToDataURL(file)
+    const newImage = await addImage(originalDataURL, file.name)
     
     // 后台异步生成缩略图，不阻塞 UI
     scheduleIdleTask(() => {
-      generateThumbnail(file).then(thumbBlob => {
-        // 将缩略图 Blob 转换为 Blob URL
-        const thumbnailUrl = URL.createObjectURL(thumbBlob)
-        floatingImageStore.updateImage(newImage.id, { thumbnailUrl })
+      generateThumbnail(file).then(thumbnailDataURL => {
+        floatingImageStore.updateImage(newImage.id, { thumbnailUrl: thumbnailDataURL })
       }).catch(() => {
         // 缩略图生成失败，忽略
       })
@@ -365,28 +364,18 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   }
 }
 
-// 检测是否为移动端
-const isMobile = () => window.innerWidth <= 768
-
 // 添加图片
 const addImage = async (url: string, name: string, thumbnailUrl?: string) => {
   // 计算初始位置（错开显示）
   const offset = floatingImages.value.length * 30
 
-  // 移动端使用更小的初始尺寸和更合适的位置
-  const mobile = isMobile()
-  const initialX = mobile ? 20 + offset : 100 + offset
-  const initialY = mobile ? 100 + offset : 100 + offset
-  const initialWidth = mobile ? Math.min(250, window.innerWidth - 40) : 300
-  const initialHeight = mobile ? 180 : 200
-
   return await floatingImageStore.addImage({
     url,
     name,
-    x: initialX,
-    y: initialY,
-    width: initialWidth,
-    height: initialHeight,
+    x: 100 + offset,
+    y: 100 + offset,
+    width: 300,
+    height: 200,
     naturalWidth: 0,
     naturalHeight: 0,
     aspectRatio: 1,
@@ -440,6 +429,12 @@ const handleWindowMouseDown = (e: MouseEvent, image: FloatingImage) => {
   bringToFront(image)
 }
 
+// 处理窗口触摸开始
+const handleWindowTouchStart = (e: TouchEvent, image: FloatingImage) => {
+  bringToFront(image)
+  setActiveImage(image.id)
+}
+
 // 开始拖拽
 const startDrag = (e: MouseEvent, image: FloatingImage) => {
   e.preventDefault()
@@ -455,6 +450,24 @@ const startDrag = (e: MouseEvent, image: FloatingImage) => {
   bringToFront(image)
 }
 
+// 触摸开始拖拽
+const startDragTouch = (e: TouchEvent, image: FloatingImage) => {
+  if (e.touches.length !== 1) return
+  e.preventDefault()
+  e.stopPropagation()
+
+  const touch = e.touches[0]!
+  dragState.isDragging = true
+  dragState.imageId = image.id
+  dragState.startX = touch.clientX
+  dragState.startY = touch.clientY
+  dragState.initialX = image.x
+  dragState.initialY = image.y
+
+  bringToFront(image)
+  setActiveImage(image.id)
+}
+
 // 处理拖拽移动
 const handleDragMove = (e: MouseEvent) => {
   if (dragState.isDragging && dragState.imageId) {
@@ -462,6 +475,20 @@ const handleDragMove = (e: MouseEvent) => {
     if (image) {
       const deltaX = e.clientX - dragState.startX
       const deltaY = e.clientY - dragState.startY
+      image.x = Math.max(0, dragState.initialX + deltaX)
+      image.y = Math.max(0, dragState.initialY + deltaY)
+    }
+  }
+}
+
+// 处理触摸拖拽移动
+const handleDragMoveTouch = (e: TouchEvent) => {
+  if (dragState.isDragging && dragState.imageId && e.touches.length === 1) {
+    const touch = e.touches[0]!
+    const image = floatingImages.value.find(img => img.id === dragState.imageId)
+    if (image) {
+      const deltaX = touch.clientX - dragState.startX
+      const deltaY = touch.clientY - dragState.startY
       image.x = Math.max(0, dragState.initialX + deltaX)
       image.y = Math.max(0, dragState.initialY + deltaY)
     }
@@ -502,6 +529,28 @@ const startResize = (e: MouseEvent, image: FloatingImage, direction: string) => 
   bringToFront(image)
 }
 
+// 触摸开始调整大小
+const startResizeTouch = (e: TouchEvent, image: FloatingImage, direction: string) => {
+  if (e.touches.length !== 1) return
+  e.preventDefault()
+  e.stopPropagation()
+
+  const touch = e.touches[0]!
+  resizeState.isResizing = true
+  resizeState.imageId = image.id
+  resizeState.direction = direction
+  resizeState.startX = touch.clientX
+  resizeState.startY = touch.clientY
+  resizeState.initialWidth = image.width
+  resizeState.initialHeight = image.height
+  resizeState.initialX = image.x
+  resizeState.initialY = image.y
+  resizeState.aspectRatio = image.aspectRatio
+
+  bringToFront(image)
+  setActiveImage(image.id)
+}
+
 // 处理调整大小移动
 const handleResizeMove = (e: MouseEvent) => {
   if (resizeState.isResizing && resizeState.imageId) {
@@ -533,6 +582,52 @@ const handleResizeMove = (e: MouseEvent) => {
         newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
         break
       case 'nw': // 西北角
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+    }
+
+    image.width = newWidth
+    image.height = newHeight
+    image.x = newX
+    image.y = newY
+  }
+}
+
+// 处理触摸调整大小移动
+const handleResizeMoveTouch = (e: TouchEvent) => {
+  if (resizeState.isResizing && resizeState.imageId && e.touches.length === 1) {
+    const touch = e.touches[0]!
+    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
+    if (!image) return
+
+    const deltaX = touch.clientX - resizeState.startX
+    const deltaY = touch.clientY - resizeState.startY
+
+    let newWidth = resizeState.initialWidth
+    let newHeight = resizeState.initialHeight
+    let newX = resizeState.initialX
+    let newY = resizeState.initialY
+
+    // 根据方向计算新尺寸（保持宽高比）
+    switch (resizeState.direction) {
+      case 'se':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        break
+      case 'sw':
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        break
+      case 'ne':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+      case 'nw':
         newWidth = Math.max(1, resizeState.initialWidth - deltaX)
         newHeight = newWidth / resizeState.aspectRatio
         newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
@@ -643,11 +738,56 @@ const startButtonDrag = (e: MouseEvent) => {
   buttonDragState.initialY = buttonPosition.value.y
 }
 
+// 触摸开始拖拽按钮
+const startButtonDragTouch = (e: TouchEvent) => {
+  if (e.touches.length !== 1) return
+
+  const touch = e.touches[0]!
+  buttonDragState.isDragging = true
+  buttonDragState.hasMoved = false
+  buttonDragState.startX = touch.clientX
+  buttonDragState.startY = touch.clientY
+
+  // 如果按钮还在默认位置，先转换为像素位置
+  if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
+    const buttonEl = e.currentTarget as HTMLElement
+    const rect = buttonEl.getBoundingClientRect()
+    buttonPosition.value.x = rect.left
+    buttonPosition.value.y = rect.top
+  }
+
+  buttonDragState.initialX = buttonPosition.value.x
+  buttonDragState.initialY = buttonPosition.value.y
+}
+
 // 处理按钮拖拽移动
 const handleButtonDragMove = (e: MouseEvent) => {
   if (buttonDragState.isDragging) {
     const deltaX = e.clientX - buttonDragState.startX
     const deltaY = e.clientY - buttonDragState.startY
+
+    // 如果移动距离超过阈值，标记为已移动
+    const moveThreshold = 5
+    if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
+      buttonDragState.hasMoved = true
+    }
+
+    buttonPosition.value.x = buttonDragState.initialX + deltaX
+    buttonPosition.value.y = buttonDragState.initialY + deltaY
+
+    // 限制在视窗内
+    const buttonSize = 56
+    buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
+    buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
+  }
+}
+
+// 处理按钮触摸拖拽移动
+const handleButtonDragMoveTouch = (e: TouchEvent) => {
+  if (buttonDragState.isDragging && e.touches.length === 1) {
+    const touch = e.touches[0]!
+    const deltaX = touch.clientX - buttonDragState.startX
+    const deltaY = touch.clientY - buttonDragState.startY
 
     // 如果移动距离超过阈值，标记为已移动
     const moveThreshold = 5
@@ -680,200 +820,28 @@ const handleButtonClick = (e: MouseEvent) => {
   showUploadDialog.value = true
 }
 
-// 处理触摸开始
-const handleButtonTouchStart = (e: TouchEvent) => {
-  const touch = e.touches[0]
-  if (!touch) return
-
-  buttonDragState.isDragging = true
-  buttonDragState.hasMoved = false
-  buttonDragState.startX = touch.clientX
-  buttonDragState.startY = touch.clientY
-
-  // 如果按钮还在默认位置，先转换为像素位置
-  if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
-    const buttonEl = e.currentTarget as HTMLElement
-    const rect = buttonEl.getBoundingClientRect()
-    buttonPosition.value.x = rect.left
-    buttonPosition.value.y = rect.top
-  }
-
-  buttonDragState.initialX = buttonPosition.value.x
-  buttonDragState.initialY = buttonPosition.value.y
-}
-
-// 处理触摸移动
-const handleButtonTouchMove = (e: TouchEvent) => {
-  if (buttonDragState.isDragging) {
-    const touch = e.touches[0]
-    if (!touch) return
-
-    const deltaX = touch.clientX - buttonDragState.startX
-    const deltaY = touch.clientY - buttonDragState.startY
-
-    // 如果移动距离超过阈值，标记为已移动
-    const moveThreshold = 5
-    if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
-      buttonDragState.hasMoved = true
-    }
-
-    buttonPosition.value.x = buttonDragState.initialX + deltaX
-    buttonPosition.value.y = buttonDragState.initialY + deltaY
-
-    // 限制在视窗内
-    const buttonSize = 56
-    buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
-    buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
-  }
-}
-
-// 处理触摸结束
-const handleButtonTouchEnd = () => {
-  const wasDragging = buttonDragState.isDragging
-  const hadMoved = buttonDragState.hasMoved
-  buttonDragState.isDragging = false
-
-  // 如果没有移动过，说明是点击，手动触发打开对话框
-  if (wasDragging && !hadMoved) {
-    showUploadDialog.value = true
-  }
-}
-
-// 触摸事件处理 - 拖拽
-const startDragTouch = (e: TouchEvent, image: FloatingImage) => {
-  const touch = e.touches[0]
-  if (!touch) return
-
-  dragState.isDragging = true
-  dragState.imageId = image.id
-  dragState.startX = touch.clientX
-  dragState.startY = touch.clientY
-  dragState.initialX = image.x
-  dragState.initialY = image.y
-
-  bringToFront(image)
-}
-
-// 触摸事件处理 - 调整大小
-const startResizeTouch = (e: TouchEvent, image: FloatingImage, direction: string) => {
-  const touch = e.touches[0]
-  if (!touch) return
-
-  resizeState.isResizing = true
-  resizeState.imageId = image.id
-  resizeState.direction = direction
-  resizeState.startX = touch.clientX
-  resizeState.startY = touch.clientY
-  resizeState.initialWidth = image.width
-  resizeState.initialHeight = image.height
-  resizeState.initialX = image.x
-  resizeState.initialY = image.y
-  resizeState.aspectRatio = image.aspectRatio
-
-  bringToFront(image)
-}
-
-// 处理触摸移动 - 拖拽
-const handleDragMoveTouch = (e: TouchEvent) => {
-  if (dragState.isDragging && dragState.imageId) {
-    const touch = e.touches[0]
-    if (!touch) return
-
-    const image = floatingImages.value.find(img => img.id === dragState.imageId)
-    if (image) {
-      const deltaX = touch.clientX - dragState.startX
-      const deltaY = touch.clientY - dragState.startY
-      image.x = Math.max(0, dragState.initialX + deltaX)
-      image.y = Math.max(0, dragState.initialY + deltaY)
-    }
-  }
-}
-
-// 处理触摸移动 - 调整大小
-const handleResizeMoveTouch = (e: TouchEvent) => {
-  if (resizeState.isResizing && resizeState.imageId) {
-    const touch = e.touches[0]
-    if (!touch) return
-
-    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
-    if (!image) return
-
-    const deltaX = touch.clientX - resizeState.startX
-    const deltaY = touch.clientY - resizeState.startY
-
-    let newWidth = resizeState.initialWidth
-    let newHeight = resizeState.initialHeight
-    let newX = resizeState.initialX
-    let newY = resizeState.initialY
-
-    switch (resizeState.direction) {
-      case 'se':
-        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        break
-      case 'sw':
-        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
-        break
-      case 'ne':
-        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
-        break
-      case 'nw':
-        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
-        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
-        break
-    }
-
-    image.width = newWidth
-    image.height = newHeight
-    image.x = newX
-    image.y = newY
-  }
-}
-
-// 结束触摸拖拽
-const endDragTouch = async () => {
-  if (dragState.isDragging && dragState.imageId) {
-    const image = floatingImages.value.find(img => img.id === dragState.imageId)
-    if (image) {
-      await floatingImageStore.updateImage(dragState.imageId, {
-        x: image.x,
-        y: image.y
-      })
-    }
-  }
-  dragState.isDragging = false
-  dragState.imageId = null
-}
-
-// 处理触摸结束 - 调整大小
-const endResizeTouch = async () => {
-  if (resizeState.isResizing && resizeState.imageId) {
-    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
-    if (image) {
-      await floatingImageStore.updateImage(resizeState.imageId, {
-        x: image.x,
-        y: image.y,
-        width: image.width,
-        height: image.height
-      })
-    }
-  }
-  resizeState.isResizing = false
-  resizeState.imageId = null
-  resizeState.direction = ''
-}
-
 // 点击空白处隐藏手脚架
 const handleClickOutside = (e: MouseEvent) => {
   const target = e.target as HTMLElement
   if (!target.closest('.image-window')) {
     setActiveImage(null)
+  }
+}
+
+// 触摸结束时的焦点释放处理
+const handleTouchEndOutside = (e: TouchEvent) => {
+  // 如果正在拖拽或调整大小，不处理
+  if (dragState.isDragging || resizeState.isResizing || buttonDragState.isDragging) {
+    return
+  }
+
+  // 如果触摸结束时不在图片窗口上，释放焦点
+  if (e.changedTouches.length > 0) {
+    const touch = e.changedTouches[0]!
+    const target = document.elementFromPoint(touch.clientX, touch.clientY)
+    if (target && !target.closest('.image-window')) {
+      setActiveImage(null)
+    }
   }
 }
 
@@ -886,11 +854,14 @@ onMounted(() => {
   document.addEventListener('mouseup', endResize)
   document.addEventListener('mouseup', endButtonDrag)
   document.addEventListener('click', handleClickOutside)
-  // 触摸事件
+  // 触摸事件监听
   document.addEventListener('touchmove', handleDragMoveTouch, { passive: false })
   document.addEventListener('touchmove', handleResizeMoveTouch, { passive: false })
-  document.addEventListener('touchend', endDragTouch)
-  document.addEventListener('touchend', endResizeTouch)
+  document.addEventListener('touchmove', handleButtonDragMoveTouch, { passive: false })
+  document.addEventListener('touchend', endDrag)
+  document.addEventListener('touchend', endResize)
+  document.addEventListener('touchend', endButtonDrag)
+  document.addEventListener('touchend', handleTouchEndOutside)
 })
 
 onUnmounted(() => {
@@ -901,11 +872,14 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', endResize)
   document.removeEventListener('mouseup', endButtonDrag)
   document.removeEventListener('click', handleClickOutside)
-  // 触摸事件
+  // 触摸事件移除
   document.removeEventListener('touchmove', handleDragMoveTouch)
   document.removeEventListener('touchmove', handleResizeMoveTouch)
-  document.removeEventListener('touchend', endDragTouch)
-  document.removeEventListener('touchend', endResizeTouch)
+  document.removeEventListener('touchmove', handleButtonDragMoveTouch)
+  document.removeEventListener('touchend', endDrag)
+  document.removeEventListener('touchend', endResize)
+  document.removeEventListener('touchend', endButtonDrag)
+  document.removeEventListener('touchend', handleTouchEndOutside)
 })
 </script>
 
@@ -930,6 +904,8 @@ onUnmounted(() => {
   pointer-events: auto;
   user-select: none;
   transition: box-shadow 0.3s ease;
+  /* 防止触摸时触发页面滚动 */
+  touch-action: none;
 }
 
 .image-window:hover,
@@ -1055,6 +1031,8 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   cursor: grab;
   user-select: none;
+  /* 防止触摸时触发页面滚动 */
+  touch-action: none;
 }
 
 .viewer-trigger:hover {
@@ -1187,57 +1165,149 @@ onUnmounted(() => {
 }
 
 /* 移动端适配 */
-@media screen and (max-width: 768px) {
+@media (max-width: 768px) {
+  /* 触发按钮增大触摸区域 */
   .viewer-trigger {
+    width: 64px;
+    height: 64px;
+    font-size: 28px;
     right: 16px;
-    width: 48px;
-    height: 48px;
   }
 
+  .viewer-trigger:hover {
+    transform: translateY(-50%) scale(1.05);
+  }
+
+  .viewer-trigger.is-dragging {
+    transform: scale(1.05);
+  }
+
+  /* 图片计数徽章 */
+  .image-count {
+    width: 24px;
+    height: 24px;
+    font-size: 14px;
+    top: -6px;
+    right: -6px;
+  }
+
+  /* 图片窗口 */
   .image-window {
-    max-width: 85vw;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   }
 
-  /* 增大移动端关闭按钮 */
-  .floating-close-btn {
+  /* 关闭按钮增大 - 只在激活状态显示 */
+  .image-window.is-active .floating-close-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    top: -18px;
+    right: -18px;
     opacity: 1;
     transform: scale(1);
-    width: 32px;
-    height: 32px;
-    top: -10px;
-    right: -10px;
   }
 
-  /* 增大移动端调整大小手柄 */
-  .resize-handle {
+  /* 调整大小手柄增大 - 只在激活状态显示 */
+  .image-window.is-active .resize-handle {
     width: 20px;
     height: 20px;
-    border-width: 3px;
+    opacity: 1;
+    transform: scale(1);
   }
 
-  .resize-se {
+  .image-window.is-active .resize-se {
     right: -10px;
     bottom: -10px;
   }
 
-  .resize-sw {
+  .image-window.is-active .resize-sw {
     left: -10px;
     bottom: -10px;
   }
 
-  .resize-ne {
+  .image-window.is-active .resize-ne {
     right: -10px;
     top: -10px;
   }
 
-  .resize-nw {
+  .image-window.is-active .resize-nw {
     left: -10px;
     top: -10px;
   }
 
+  /* 窗口内容 */
+  .window-content {
+    border-radius: 8px;
+  }
+
+  /* 上传对话框 */
+  .upload-icon {
+    font-size: 36px;
+  }
+
+  .upload-text {
+    font-size: 13px;
+  }
+
+  .upload-tip {
+    font-size: 11px;
+  }
+
+  /* 图片列表 */
   .image-item img {
     width: 80px;
     height: 80px;
+  }
+
+  .image-controls .delete-btn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* 触摸设备优化 */
+@media (pointer: coarse) {
+  /* 关闭按钮和手柄只在激活状态显示 */
+  .image-window.is-active .floating-close-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .image-window.is-active .resize-handle {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* 移除 hover 效果（触摸设备无 hover） */
+  .floating-close-btn:hover {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
+  }
+
+  .resize-handle:hover {
+    transform: scale(1);
+  }
+
+  .viewer-trigger:hover {
+    transform: translateY(-50%) scale(1);
+    box-shadow: 0 4px 16px rgba(255, 133, 162, 0.4);
+  }
+
+  /* 添加 active 效果替代 hover */
+  .floating-close-btn:active {
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.6);
+  }
+
+  .resize-handle:active {
+    background: #ff6b9d;
+    transform: scale(1.2);
+  }
+
+  .viewer-trigger:active {
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 20px rgba(255, 133, 162, 0.5);
   }
 }
 </style>
