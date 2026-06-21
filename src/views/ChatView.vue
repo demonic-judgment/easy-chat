@@ -835,29 +835,15 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
   right: 24px;
   display: flex;
   align-items: center;
+  gap: 8px;
 }
 
 .media-btn {
   border-color: rgba(255, 133, 162, 0.3);
   color: #ff85a2;
-  border-radius: 8px 0 0 8px;
-  border-right: none;
-  margin: 0;
 }
 
 .media-btn:hover {
-  background: rgba(255, 133, 162, 0.1);
-  border-color: #ff85a2;
-}
-
-.settings-btn {
-  border-radius: 0 8px 8px 0;
-  border-color: rgba(255, 133, 162, 0.3);
-  color: #ff85a2;
-  margin: 0;
-}
-
-.settings-btn:hover {
   background: rgba(255, 133, 162, 0.1);
   border-color: #ff85a2;
 }
@@ -883,6 +869,16 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
   font-size: 14px;
   font-weight: 600;
   flex-shrink: 0;
+}
+
+.settings-btn {
+  border-color: rgba(255, 133, 162, 0.3);
+  color: #ff85a2;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 133, 162, 0.1);
+  border-color: #ff85a2;
 }
 
 /* 消息区域 */
