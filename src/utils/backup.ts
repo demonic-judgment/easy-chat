@@ -1,4 +1,4 @@
-import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingImage } from '@/types'
+import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingMedia } from '@/types'
 import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
 
@@ -13,7 +13,7 @@ export interface BackupData {
     templates: PromptTemplate[]
     models: ModelConfig[]
     settings: AppSettings
-    floatingImages: FloatingImage[]
+    floatingImages: FloatingMedia[]
   }
 }
 
@@ -30,7 +30,7 @@ export async function exportAllData(): Promise<BackupData> {
     db.templates.toArray(),
     db.models.toArray(),
     db.settings.get('app-settings'),
-    db.floatingImages.get('app-floating-images')
+    db.floatingMedia.get('app-floating-media')
   ])
 
   const defaultSettings: AppSettings = {
@@ -48,7 +48,7 @@ export async function exportAllData(): Promise<BackupData> {
       templates,
       models,
       settings: settingsRecord?.value || defaultSettings,
-      floatingImages: floatingImagesRecord?.images || []
+      floatingImages: floatingImagesRecord?.media || []
     }
   }
 }
@@ -154,7 +154,7 @@ export async function restoreData(
       db.messages.toArray(),
       db.templates.toArray(),
       db.models.toArray(),
-      db.floatingImages.get('app-floating-images').then(r => r?.images || [])
+      db.floatingMedia.get('app-floating-media').then(r => r?.media || [])
     ])
 
     // 合并或替换数据
@@ -226,11 +226,11 @@ export async function restoreData(
       'floatingImages'
     )
     const maxZIndex = floatingImages.length > 0
-      ? Math.max(...floatingImages.map((img: FloatingImage) => img.zIndex), 1000)
+      ? Math.max(...floatingImages.map((img: FloatingMedia) => img.zIndex), 1000)
       : 1000
-    await db.floatingImages.put({
-      id: 'app-floating-images',
-      images: toStorable(floatingImages),
+    await db.floatingMedia.put({
+      id: 'app-floating-media',
+      media: toStorable(floatingImages),
       maxZIndex
     })
 
@@ -289,7 +289,7 @@ export async function getDataOverview(): Promise<{
     db.messages.count(),
     db.templates.count(),
     db.models.count(),
-    db.floatingImages.get('app-floating-images')
+    db.floatingMedia.get('app-floating-media')
   ])
 
   return {
@@ -298,7 +298,7 @@ export async function getDataOverview(): Promise<{
     messages,
     templates,
     models,
-    floatingImages: floatingImagesRecord?.images?.length || 0
+    floatingImages: floatingImagesRecord?.media?.length || 0
   }
 }
 
@@ -313,6 +313,6 @@ export async function clearAllData(): Promise<void> {
     db.templates.clear(),
     db.models.clear(),
     db.settings.delete('app-settings'),
-    db.floatingImages.delete('app-floating-images')
+    db.floatingMedia.delete('app-floating-media')
   ])
 }

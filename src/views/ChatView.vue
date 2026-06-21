@@ -68,8 +68,8 @@
     <!-- 设置面板 -->
     <SettingsPanel v-model="showSettings" />
 
-    <!-- 悬浮图片查看器 -->
-    <FloatingImageViewer />
+    <!-- 悬浮媒体查看器 -->
+    <FloatingMediaViewer />
 
     <!-- 预览请求体弹窗 -->
     <el-dialog
@@ -92,7 +92,7 @@ import AgentSidebar from '@/components/AgentSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
-import FloatingImageViewer from '@/components/FloatingImageViewer.vue'
+import FloatingMediaViewer from '@/components/FloatingMediaViewer.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
 import type { MessageRole, Message, ImageContent, ImageReference } from '@/types'
 import { assembleMessages } from '@/utils/templateParser'
