@@ -19,12 +19,20 @@
               <span>请选择一个聊天或创建新对话</span>
             </template>
           </div>
-          <el-button
-            :icon="Setting"
-            circle
-            class="settings-btn"
-            @click="showSettings = true"
-          />
+          <div class="header-actions">
+            <el-button
+              :icon="mediaButtonIcon"
+              circle
+              class="media-btn"
+              @click="openMediaDialog"
+            />
+            <el-button
+              :icon="Setting"
+              circle
+              class="settings-btn"
+              @click="showSettings = true"
+            />
+          </div>
         </header>
 
         <!-- 消息区域 -->
@@ -68,8 +76,8 @@
     <!-- 设置面板 -->
     <SettingsPanel v-model="showSettings" />
 
-    <!-- 悬浮图片查看器 -->
-    <FloatingImageViewer />
+    <!-- 悬浮媒体查看器 -->
+    <FloatingMediaViewer ref="mediaViewerRef" />
 
     <!-- 预览请求体弹窗 -->
     <el-dialog
@@ -87,12 +95,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
 
-import { Setting } from '@element-plus/icons-vue'
+import { Setting, PictureFilled, VideoPlay } from '@element-plus/icons-vue'
 import AgentSidebar from '@/components/AgentSidebar.vue'
 import ChatMessage from '@/components/ChatMessage.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
-import FloatingImageViewer from '@/components/FloatingImageViewer.vue'
+import FloatingMediaViewer from '@/components/FloatingMediaViewer.vue'
 import { useAgentStore, useChatStore, useMessageStore, useModelStore, useSettingsStore, usePromptStore } from '@/stores'
 import type { MessageRole, Message, ImageContent, ImageReference } from '@/types'
 import { assembleMessages } from '@/utils/templateParser'
@@ -117,6 +125,7 @@ const messagesContainer = ref<HTMLElement>()
 const messageRefs = ref<InstanceType<typeof ChatMessage>[]>([])
 const showPreviewDialog = ref(false)
 const previewRequestBody = ref<string>('')
+const mediaViewerRef = ref<InstanceType<typeof FloatingMediaViewer> | null>(null)
 
 // 用于取消请求
 const abortController = ref<AbortController | null>(null)
@@ -162,6 +171,16 @@ const currentMessages = computed(() => {
 const chatMainStyle = computed(() => ({
   backgroundColor: `rgba(255, 255, 255, ${settingsStore.settings.chatOpacity})`
 }))
+
+// 媒体按钮图标
+const mediaButtonIcon = computed(() => {
+  return PictureFilled
+})
+
+// 打开媒体对话框
+const openMediaDialog = () => {
+  mediaViewerRef.value?.openDialog()
+}
 
 // 检查用户是否在底部附近（阈值 100px）
 const isNearBottom = (): boolean => {
@@ -811,9 +830,22 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
   position: relative;
 }
 
-.chat-header .settings-btn {
+.header-actions {
   position: absolute;
   right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.media-btn {
+  border-color: rgba(255, 133, 162, 0.3);
+  color: #ff85a2;
+}
+
+.media-btn:hover {
+  background: rgba(255, 133, 162, 0.1);
+  border-color: #ff85a2;
 }
 
 .chat-title {

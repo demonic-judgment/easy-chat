@@ -1,4 +1,4 @@
-import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingImage } from '@/types'
+import type { Agent, ChatHistory, Message, PromptTemplate, ModelConfig, AppSettings, FloatingMedia } from '@/types'
 import { toStorable } from '@/utils/storable'
 import { db } from '@/db'
 
@@ -13,7 +13,7 @@ export interface BackupData {
     templates: PromptTemplate[]
     models: ModelConfig[]
     settings: AppSettings
-    floatingImages: FloatingImage[]
+    floatingImages: FloatingMedia[]
   }
 }
 
@@ -226,7 +226,7 @@ export async function restoreData(
       'floatingImages'
     )
     const maxZIndex = floatingImages.length > 0
-      ? Math.max(...floatingImages.map((img: FloatingImage) => img.zIndex), 1000)
+      ? Math.max(...floatingImages.map((img: FloatingMedia) => img.zIndex), 1000)
       : 1000
     await db.floatingImages.put({
       id: 'app-floating-images',

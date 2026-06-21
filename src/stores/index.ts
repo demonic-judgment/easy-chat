@@ -4,4 +4,7 @@ export { useMessageStore } from './message'
 export { usePromptStore } from './prompt'
 export { useModelStore } from './model'
 export { useSettingsStore } from './settings'
-export { useFloatingImageStore } from './floatingImage'
+import { useFloatingMediaStore } from './floatingMedia'
+export { useFloatingMediaStore }
+// 向后兼容：保留旧名称
+export const useFloatingImageStore = useFloatingMediaStore
