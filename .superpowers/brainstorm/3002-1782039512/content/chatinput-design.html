@@ -1,0 +1,75 @@
+<h2>ChatInput UI重新设计方案</h2>
+<p class="subtitle">对比当前设计与新设计方案</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">当前设计</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; background: rgba(255, 255, 255, 0.9); border-radius: 8px;">
+        <div style="margin-bottom: 12px;">
+          <textarea style="width: 100%; min-height: 72px; padding: 12px; border-radius: 16px; border: 1px solid rgba(255, 133, 162, 0.3); font-size: 14px; resize: none;" placeholder="输入消息... (Enter 换行，点击按钮发送)">当前输入框默认3行</textarea>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <button style="padding: 10px 20px; border-radius: 20px; border: 1px solid rgba(255, 133, 162, 0.3); background: white; color: #ff85a2;">📷 图片</button>
+          <div style="display: flex; gap: 8px;">
+            <button style="padding: 10px 20px; border-radius: 20px; border: 1px solid #ddd; background: white;">👁 预览请求体</button>
+            <button style="padding: 10px 24px; border-radius: 20px; border: none; background: linear-gradient(135deg, #ff85a2, #ff6b9d); color: white;">📤 发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">新设计方案</div>
+    <div class="mockup-body">
+      <div style="padding: 16px; background: transparent;">
+        <div style="display: flex; align-items: center; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-radius: 24px; padding: 8px 16px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);">
+          <button style="padding: 8px 12px; border-radius: 16px; border: none; background: transparent; color: #ff85a2; display: flex; align-items: center; gap: 4px; flex-shrink: 0;">
+            📷
+          </button>
+          <textarea style="flex: 1; min-height: 24px; max-height: 360px; padding: 8px 12px; border: none; background: transparent; font-size: 14px; resize: none; line-height: 1.5;" placeholder="输入消息..."></textarea>
+          <div style="display: flex; align-items: center; flex-shrink: 0; margin-left: 8px;">
+            <button style="width: 60px; height: 36px; border-radius: 18px 0 0 18px; border: 1px solid #ddd; background: white; font-size: 12px; padding: 0 8px;">👁</button>
+            <button style="width: 100px; height: 36px; border-radius: 0 18px 18px 0; border: none; background: linear-gradient(135deg, #ff85a2, #ff6b9d); color: white; font-size: 14px; padding: 0 12px; display: flex; align-items: center; gap: 4px;">📤 发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>新设计特点</h3>
+  <ul>
+    <li><strong>单行布局：</strong>所有组件在同一行，更紧凑简洁</li>
+    <li><strong>默认1行：</strong>输入框无输入时只占1行，节省空间</li>
+    <li><strong>胶囊形状：</strong>整体采用圆角胶囊设计，更现代</li>
+    <li><strong>透明背景：</strong>背景透明，视觉更轻盈</li>
+    <li><strong>合并按钮：</strong>预览和发送按钮合并，预览占1/5宽度</li>
+  </ul>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="approve" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>认可这个方向</h3>
+      <p>这个设计方向符合我的需求，可以继续细化</p>
+    </div>
+  </div>
+  <div class="option" data-choice="modify" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>需要调整</h3>
+      <p>方向基本正确，但有一些细节需要调整</p>
+    </div>
+  </div>
+  <div class="option" data-choice="redesign" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>重新设计</h3>
+      <p>这个方向不符合我的需求，需要重新考虑</p>
+    </div>
+  </div>
+</div>
