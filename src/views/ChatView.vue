@@ -22,13 +22,11 @@
           <div class="header-actions">
             <el-button
               :icon="mediaButtonIcon"
-              circle
               class="media-btn"
               @click="openMediaDialog"
             />
             <el-button
               :icon="Setting"
-              circle
               class="settings-btn"
               @click="showSettings = true"
             />
@@ -835,17 +833,35 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
   right: 24px;
   display: flex;
   align-items: center;
-  gap: 8px;
+}
+
+.media-btn,
+.settings-btn {
+  border-radius: 20px;
+  padding: 8px 14px;
+  margin: 0;
+  border: 1px solid rgba(255, 133, 162, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  color: #ff85a2;
+  transition: all 0.2s ease;
+}
+
+.media-btn:hover,
+.settings-btn:hover {
+  background: rgba(255, 133, 162, 0.1);
+  border-color: #ff85a2;
 }
 
 .media-btn {
-  border-color: rgba(255, 133, 162, 0.3);
-  color: #ff85a2;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: none;
+  margin-right: -1px;
 }
 
-.media-btn:hover {
-  background: rgba(255, 133, 162, 0.1);
-  border-color: #ff85a2;
+.settings-btn {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .chat-title {
