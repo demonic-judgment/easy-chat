@@ -6,7 +6,7 @@ import type {
   PromptTemplate,
   ModelConfig,
   AppSettings,
-  FloatingImage
+  FloatingMedia
 } from '@/types'
 import type { ImageRecord } from '@/utils/imageStorage'
 import { toStorable } from '@/utils/storable'
@@ -18,7 +18,13 @@ export interface SettingsRecord {
 
 export interface FloatingImagesRecord {
   id: string
-  images: FloatingImage[]
+  images: FloatingMedia[]
+  maxZIndex: number
+}
+
+export interface FloatingMediaRecord {
+  id: string
+  media: FloatingMedia[]
   maxZIndex: number
 }
 
@@ -30,11 +36,12 @@ export class EasyChatDatabase extends Dexie {
   models!: Table<ModelConfig, string>
   settings!: Table<SettingsRecord, string>
   floatingImages!: Table<FloatingImagesRecord, string>
+  floatingMedia!: Table<FloatingMediaRecord, string>
   images!: Table<ImageRecord, string>
 
   constructor() {
     super('EasyChatDB')
-    this.version(2).stores({
+    this.version(3).stores({
       agents: 'id, name, createdAt, updatedAt',
       chatHistories: 'id, agentId, title, createdAt, updatedAt',
       messages: 'id, chatHistoryId, role, createdAt',
@@ -42,6 +49,7 @@ export class EasyChatDatabase extends Dexie {
       models: 'id, name, createdAt, updatedAt',
       settings: 'id',
       floatingImages: 'id',
+      floatingMedia: 'id',
       images: 'id, messageId, createdAt'
     })
   }

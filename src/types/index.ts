@@ -149,19 +149,30 @@ export interface AppSettings {
   chatOpacity: number
 }
 
-// 悬浮图片
-export interface FloatingImage {
+// 媒体类型
+export type MediaType = 'image' | 'video'
+
+// 悬浮媒体（兼容旧版 FloatingImage，支持图片和视频）
+export interface FloatingMedia {
   id: string
-  url: string
+  type: MediaType       // 媒体类型：图片或视频
+  url: string           // 图片：Base64 Data URL；视频：外部链接
   name: string
   x: number
   y: number
   width: number
   height: number
-  naturalWidth: number
-  naturalHeight: number
-  aspectRatio: number
+  naturalWidth?: number    // 图片专用
+  naturalHeight?: number   // 图片专用
+  aspectRatio?: number     // 图片专用
   zIndex: number
   isVisible: boolean
-  thumbnailUrl?: string  // 缩略图 URL
+  thumbnailUrl?: string    // 缩略图 URL（图片专用）
+  // 视频专用字段
+  videoPoster?: string     // 视频封面图
+  videoDuration?: number   // 视频时长（秒）
+  isPlaying?: boolean      // 播放状态
 }
+
+// 兼容旧类型名（deprecated，后续逐步替换）
+export type FloatingImage = FloatingMedia

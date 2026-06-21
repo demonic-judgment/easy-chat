@@ -25,7 +25,7 @@
           <span class="overview-value">{{ overview.models }}</span>
         </div>
         <div class="overview-item">
-          <span class="overview-label">悬浮图片</span>
+          <span class="overview-label">悬浮媒体</span>
           <span class="overview-value">{{ overview.floatingImages }}</span>
         </div>
       </div>
@@ -271,7 +271,7 @@
           </span>
         </div>
         <div class="stats-item">
-          <span class="stats-label">悬浮图片</span>
+          <span class="stats-label">悬浮媒体</span>
           <span class="stats-value success">+{{ restoreStats.floatingImages.imported }}</span>
           <span v-if="restoreStats.floatingImages.skipped > 0" class="stats-value skip">
             (跳过 {{ restoreStats.floatingImages.skipped }})

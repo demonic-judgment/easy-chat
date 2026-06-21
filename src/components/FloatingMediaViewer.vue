@@ -1,67 +1,83 @@
 <template>
-  <div class="floating-image-viewer">
-    <!-- 悬浮图片框列表 -->
-    <TransitionGroup name="image-window">
+  <div class="floating-media-viewer">
+    <!-- 悬浮媒体窗口列表 -->
+    <TransitionGroup name="media-window">
       <div
-        v-for="(image, index) in visibleImages"
-        :key="image.id"
-        class="image-window"
-        :class="{ 'is-dragging': dragState.imageId === image.id, 'is-active': activeImageId === image.id }"
-        :style="getWindowStyle(image)"
-        @mousedown="handleWindowMouseDown($event, image)"
-        @touchstart="handleWindowTouchStart($event, image)"
-        @click="setActiveImage(image.id)"
+        v-for="(media, index) in visibleMedia"
+        :key="media.id"
+        class="media-window"
+        :class="{ 'is-dragging': dragState.mediaId === media.id, 'is-active': activeMediaId === media.id }"
+        :style="getWindowStyle(media)"
+        @mousedown="handleWindowMouseDown($event, media)"
+        @touchstart="handleWindowTouchStart($event, media)"
+        @click="setActiveMedia(media.id)"
       >
         <!-- 悬浮关闭按钮 -->
         <div
           class="floating-close-btn"
-          @click.stop="toggleImageVisibility(image.id)"
+          @click.stop="toggleMediaVisibility(media.id)"
         >
           <el-icon><Close /></el-icon>
         </div>
 
-        <!-- 图片内容区域（同时作为拖拽区域） -->
+        <!-- 媒体内容区域（同时作为拖拽区域） -->
         <div
           class="window-content"
-          :style="getContentStyle(image)"
-          @mousedown="startDrag($event, image)"
-          @touchstart="startDragTouch($event, image)"
+          :style="getContentStyle(media)"
+          @mousedown="startDrag($event, media)"
+          @touchstart="startDragTouch($event, media)"
         >
-          <img
-            :src="image.url"
-            :alt="image.name"
-            draggable="false"
-            @load="handleImageLoad($event, image)"
-          />
+          <!-- 图片 -->
+          <template v-if="media.type === 'image'">
+            <img
+              :src="media.url"
+              :alt="media.name"
+              draggable="false"
+              @load="handleImageLoad($event, media)"
+            />
+          </template>
+
+          <!-- 视频 -->
+          <template v-else-if="media.type === 'video'">
+            <video
+              :src="media.url"
+              :poster="media.videoPoster"
+              controls
+              preload="metadata"
+              @loadedmetadata="handleVideoLoad($event, media)"
+              @play="updateMedia(media.id, { isPlaying: true })"
+              @pause="updateMedia(media.id, { isPlaying: false })"
+            />
+          </template>
         </div>
 
         <!-- 调整大小手柄 -->
         <div
           class="resize-handle resize-se"
-          @mousedown="startResize($event, image, 'se')"
-          @touchstart="startResizeTouch($event, image, 'se')"
+          @mousedown="startResize($event, media, 'se')"
+          @touchstart="startResizeTouch($event, media, 'se')"
         />
         <div
           class="resize-handle resize-sw"
-          @mousedown="startResize($event, image, 'sw')"
-          @touchstart="startResizeTouch($event, image, 'sw')"
+          @mousedown="startResize($event, media, 'sw')"
+          @touchstart="startResizeTouch($event, media, 'sw')"
         />
         <div
           class="resize-handle resize-ne"
-          @mousedown="startResize($event, image, 'ne')"
-          @touchstart="startResizeTouch($event, image, 'ne')"
+          @mousedown="startResize($event, media, 'ne')"
+          @touchstart="startResizeTouch($event, media, 'ne')"
         />
         <div
           class="resize-handle resize-nw"
-          @mousedown="startResize($event, image, 'nw')"
-          @touchstart="startResizeTouch($event, image, 'nw')"
+          @mousedown="startResize($event, media, 'nw')"
+          @touchstart="startResizeTouch($event, media, 'nw')"
         />
       </div>
     </TransitionGroup>
 
     <!-- 触发按钮 -->
     <el-button
-      v-if="floatingImages.length === 0"
+      v-if="mediaList.length === 0"
       class="viewer-trigger"
       :class="{ 'is-dragging': buttonDragState.isDragging }"
       :icon="Picture"
@@ -75,7 +91,7 @@
 
     <el-button
       v-else
-      class="viewer-trigger has-images"
+      class="viewer-trigger has-media"
       :class="{ 'is-dragging': buttonDragState.isDragging }"
       :icon="PictureFilled"
       circle
@@ -85,62 +101,102 @@
       @touchstart="startButtonDragTouch"
       @click="handleButtonClick"
     >
-      <span class="image-count">{{ floatingImages.length }}</span>
+      <span class="media-count">{{ mediaList.length }}</span>
     </el-button>
 
-    <!-- 上传对话框 -->
+    <!-- 添加媒体对话框 -->
     <el-dialog
       v-model="showUploadDialog"
-      title="上传图片"
-      width="500px"
+      title="添加媒体"
+      width="520px"
       destroy-on-close
       :teleported="true"
       :append-to-body="true"
     >
-      <el-upload
-        class="image-uploader"
-        drag
-        action="#"
-        :auto-upload="false"
-        :on-change="handleFileChange"
-        :show-file-list="false"
-        accept="image/*"
-        multiple
-        v-model:file-list="uploadFileList"
-      >
-        <el-icon class="upload-icon"><Upload /></el-icon>
-        <div class="upload-text">
-          拖拽图片到此处，或 <em>点击上传</em>
-        </div>
-        <template #tip>
-          <div class="upload-tip">
-            支持 JPG、PNG、GIF、WebP 等格式，可上传多张图片
-          </div>
-        </template>
-      </el-upload>
-
-      <!-- 已上传图片预览 -->
-      <div v-if="floatingImages.length > 0" class="uploaded-images">
-        <h4>已上传</h4>
-        <div class="image-list">
-          <div
-            v-for="image in lazyLoadImages"
-            :key="image.id"
-            v-memo="[image.isVisible, image.thumbnailUrl]"
-            class="image-item"
-            :class="{ 'is-hidden': !image.isVisible }"
+      <!-- 类型选择 Tab -->
+      <el-tabs v-model="activeTab" class="media-tabs">
+        <el-tab-pane label="图片" name="image">
+          <el-upload
+            class="media-uploader"
+            drag
+            action="#"
+            :auto-upload="false"
+            :on-change="handleFileChange"
+            :show-file-list="false"
+            accept="image/*"
+            multiple
+            v-model:file-list="uploadFileList"
           >
-            <img 
-              :src="image.thumbnailUrl || image.url" 
-              :alt="image.name" 
-              loading="lazy"
-              @error="handleImageError($event, image)"
-            />
-            <div class="image-controls">
+            <el-icon class="upload-icon"><Upload /></el-icon>
+            <div class="upload-text">
+              拖拽图片到此处，或 <em>点击上传</em>
+            </div>
+            <template #tip>
+              <div class="upload-tip">
+                支持 JPG、PNG、GIF、WebP 等格式，可上传多张图片
+              </div>
+            </template>
+          </el-upload>
+        </el-tab-pane>
+
+        <el-tab-pane label="视频" name="video">
+          <div class="video-input-section">
+            <el-input
+              v-model="videoUrl"
+              placeholder="输入视频链接（支持 MP4、WebM 等直接链接）"
+              clearable
+              size="large"
+            >
+              <template #prefix>
+                <el-icon><VideoPlay /></el-icon>
+              </template>
+            </el-input>
+            <el-button
+              type="primary"
+              :disabled="!videoUrl.trim()"
+              @click="addVideoFromUrl"
+            >
+              <el-icon><Plus /></el-icon>
+              添加视频
+            </el-button>
+          </div>
+          <div class="video-hint">
+            <el-icon><InfoFilled /></el-icon>
+            <span>支持直接视频链接（.mp4/.webm），暂不支持 YouTube 等第三方平台</span>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+
+      <!-- 已添加媒体列表 -->
+      <div v-if="mediaList.length > 0" class="uploaded-media">
+        <h4>已添加</h4>
+        <div class="media-list">
+          <div
+            v-for="media in lazyLoadMedia"
+            :key="media.id"
+            v-memo="[media.isVisible, media.thumbnailUrl]"
+            class="media-item"
+            :class="{ 'is-hidden': !media.isVisible, 'is-video': media.type === 'video' }"
+          >
+            <template v-if="media.type === 'image'">
+              <img
+                :src="media.thumbnailUrl || media.url"
+                :alt="media.name"
+                loading="lazy"
+                @error="handleImageError($event, media)"
+              />
+            </template>
+            <template v-else>
+              <div class="video-thumbnail">
+                <el-icon><VideoPlay /></el-icon>
+                <span class="video-name">{{ media.name }}</span>
+              </div>
+            </template>
+            <div class="media-controls">
               <el-switch
-                :model-value="image.isVisible"
+                :model-value="media.isVisible"
                 size="small"
-                @update:model-value="toggleImageVisibility(image.id)"
+                @update:model-value="toggleMediaVisibility(media.id)"
               />
               <el-button
                 class="delete-btn"
@@ -148,7 +204,7 @@
                 circle
                 size="small"
                 type="danger"
-                @click="closeImage(image.id)"
+                @click="closeMedia(media.id)"
               />
             </div>
           </div>
@@ -169,16 +225,19 @@ import {
   PictureFilled,
   Close,
   Upload,
-  Delete
+  Delete,
+  VideoPlay,
+  Plus,
+  InfoFilled
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import type { UploadFile } from 'element-plus'
-import { useFloatingImageStore } from '@/stores'
-import type { FloatingImage } from '@/types'
+import { useFloatingMediaStore } from '@/stores'
+import type { FloatingMedia } from '@/types'
 
 interface DragState {
   isDragging: boolean
-  imageId: string | null
+  mediaId: string | null
   startX: number
   startY: number
   initialX: number
@@ -187,7 +246,7 @@ interface DragState {
 
 interface ResizeState {
   isResizing: boolean
-  imageId: string | null
+  mediaId: string | null
   direction: string
   startX: number
   startY: number
@@ -207,14 +266,15 @@ interface ButtonDragState {
   initialY: number
 }
 
-const floatingImageStore = useFloatingImageStore()
+const floatingMediaStore = useFloatingMediaStore()
 const showUploadDialog = ref(false)
-const activeImageId = ref<string | null>(null)
+const activeMediaId = ref<string | null>(null)
 const uploadFileList = ref<UploadFile[]>([])
+const activeTab = ref('image')
+const videoUrl = ref('')
 
-// 按钮位置（使用 ref 以便响应式更新）
-const buttonPosition = ref({ x: 0, y: 50 }) // x: 0 表示右侧，y: 50 表示垂直居中百分比
-const isDraggingButton = ref(false)
+// 按钮位置
+const buttonPosition = ref({ x: 0, y: 50 })
 const buttonDragState = reactive<ButtonDragState>({
   isDragging: false,
   hasMoved: false,
@@ -224,27 +284,22 @@ const buttonDragState = reactive<ButtonDragState>({
   initialY: 0
 })
 
-// 计算属性：只显示可见的图片
-const visibleImages = computed(() => floatingImageStore.visibleImages())
-const floatingImages = computed(() => floatingImageStore.images)
-
-// 懒加载图片列表
-const lazyLoadImages = computed(() => {
-  return floatingImages.value
-})
+// 计算属性
+const visibleMedia = computed(() => floatingMediaStore.visibleMedia())
+const mediaList = computed(() => floatingMediaStore.mediaList)
+const lazyLoadMedia = computed(() => mediaList.value)
 
 // 图片加载错误处理
-const handleImageError = (e: Event, image: FloatingImage) => {
+const handleImageError = (e: Event, media: FloatingMedia) => {
   const img = e.target as HTMLImageElement
-  // 如果缩略图加载失败，使用原图
-  if (img.src !== image.url) {
-    img.src = image.url
+  if (img.src !== media.url) {
+    img.src = media.url
   }
 }
 
 const dragState = reactive<DragState>({
   isDragging: false,
-  imageId: null,
+  mediaId: null,
   startX: 0,
   startY: 0,
   initialX: 0,
@@ -253,7 +308,7 @@ const dragState = reactive<DragState>({
 
 const resizeState = reactive<ResizeState>({
   isResizing: false,
-  imageId: null,
+  mediaId: null,
   direction: '',
   startX: 0,
   startY: 0,
@@ -264,7 +319,7 @@ const resizeState = reactive<ResizeState>({
   aspectRatio: 1
 })
 
-// 将 File 转换为 Base64 Data URL（持久化存储）
+// 将 File 转换为 Base64 Data URL
 const fileToDataURL = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -278,26 +333,25 @@ const fileToDataURL = (file: File): Promise<string> => {
   })
 }
 
-// 生成缩略图（返回 Base64 Data URL）
+// 生成缩略图
 const generateThumbnail = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
-    
+
     img.onload = () => {
       URL.revokeObjectURL(url)
-      
+
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
       if (!ctx) {
         reject(new Error('无法创建 Canvas 上下文'))
         return
       }
-      
+
       const maxSize = 256
       let { width, height } = img
-      
-      // 计算缩放比例，保持宽高比
+
       if (width > height) {
         if (width > maxSize) {
           height = Math.round((height * maxSize) / width)
@@ -309,25 +363,22 @@ const generateThumbnail = (file: File): Promise<string> => {
           height = maxSize
         }
       }
-      
+
       canvas.width = width
       canvas.height = height
       ctx.drawImage(img, 0, 0, width, height)
-      
-      // 输出为 Base64 Data URL（持久化存储）
       resolve(canvas.toDataURL('image/jpeg', 0.8))
     }
-    
+
     img.onerror = () => {
       URL.revokeObjectURL(url)
       reject(new Error('图片加载失败'))
     }
-    
+
     img.src = url
   })
 }
 
-// requestIdleCallback fallback
 const scheduleIdleTask = (callback: () => void, options?: { timeout?: number }) => {
   if ('requestIdleCallback' in window) {
     requestIdleCallback(callback, options)
@@ -336,7 +387,7 @@ const scheduleIdleTask = (callback: () => void, options?: { timeout?: number }) 
   }
 }
 
-// 处理文件上传（支持批量）
+// 处理文件上传
 const handleFileChange = async (uploadFile: UploadFile) => {
   const file = uploadFile.raw
   if (!file) return
@@ -347,215 +398,230 @@ const handleFileChange = async (uploadFile: UploadFile) => {
   }
 
   try {
-    // 将原图转换为 Base64 Data URL（持久化存储）
     const originalDataURL = await fileToDataURL(file)
-    const newImage = await addImage(originalDataURL, file.name)
-    
-    // 后台异步生成缩略图，不阻塞 UI
+    const newImage = await floatingMediaStore.addImage({
+      url: originalDataURL,
+      name: file.name,
+      x: 100 + mediaList.value.length * 30,
+      y: 100 + mediaList.value.length * 30,
+      width: 300,
+      height: 200,
+      isVisible: true
+    })
+
     scheduleIdleTask(() => {
       generateThumbnail(file).then(thumbnailDataURL => {
-        floatingImageStore.updateImage(newImage.id, { thumbnailUrl: thumbnailDataURL })
-      }).catch(() => {
-        // 缩略图生成失败，忽略
-      })
+        floatingMediaStore.updateMedia(newImage.id, { thumbnailUrl: thumbnailDataURL })
+      }).catch(() => {})
     }, { timeout: 1000 })
   } catch (error) {
     ElMessage.error(`处理文件失败: ${file.name}`)
   }
 }
 
-// 添加图片
-const addImage = async (url: string, name: string, thumbnailUrl?: string) => {
-  // 计算初始位置（错开显示）
-  const offset = floatingImages.value.length * 30
+// 从 URL 添加视频
+const addVideoFromUrl = async () => {
+  const url = videoUrl.value.trim()
+  if (!url) return
 
-  return await floatingImageStore.addImage({
-    url,
-    name,
-    x: 100 + offset,
-    y: 100 + offset,
-    width: 300,
-    height: 200,
-    naturalWidth: 0,
-    naturalHeight: 0,
-    aspectRatio: 1,
-    isVisible: true,
-    thumbnailUrl
-  })
+  // 简单验证是否为有效 URL
+  try {
+    new URL(url)
+  } catch {
+    ElMessage.error('请输入有效的视频链接')
+    return
+  }
+
+  try {
+    const name = url.split('/').pop() || '视频'
+    await floatingMediaStore.addVideo({
+      url,
+      name,
+      x: 100 + mediaList.value.length * 30,
+      y: 100 + mediaList.value.length * 30,
+      width: 480,
+      height: 270,
+      isVisible: true
+    })
+    ElMessage.success('视频已添加')
+    videoUrl.value = ''
+  } catch (error) {
+    ElMessage.error('添加视频失败')
+  }
 }
 
-// 关闭图片（彻底删除）
-const closeImage = async (id: string) => {
-  await floatingImageStore.removeImage(id)
+// 关闭媒体
+const closeMedia = async (id: string) => {
+  await floatingMediaStore.removeMedia(id)
 }
 
-// 监听对话框关闭，清空上传文件列表
+// 监听对话框关闭
 watch(showUploadDialog, (newVal) => {
   if (!newVal) {
     uploadFileList.value = []
+    videoUrl.value = ''
+    activeTab.value = 'image'
   }
 })
 
-// 切换图片显示/隐藏
-const toggleImageVisibility = async (id: string) => {
-  await floatingImageStore.toggleVisibility(id)
+// 切换媒体显示/隐藏
+const toggleMediaVisibility = async (id: string) => {
+  await floatingMediaStore.toggleVisibility(id)
 }
 
-// 设置激活的图片（显示手脚架）
-let activeImageTimer: ReturnType<typeof setTimeout> | null = null
-const setActiveImage = (id: string | null) => {
-  // 清除之前的定时器
-  if (activeImageTimer) {
-    clearTimeout(activeImageTimer)
-    activeImageTimer = null
+// 设置激活的媒体
+let activeMediaTimer: ReturnType<typeof setTimeout> | null = null
+const setActiveMedia = (id: string | null) => {
+  if (activeMediaTimer) {
+    clearTimeout(activeMediaTimer)
+    activeMediaTimer = null
   }
-  activeImageId.value = id
-  // 如果设置了激活图片，3秒后自动隐藏
+  activeMediaId.value = id
   if (id) {
-    activeImageTimer = setTimeout(() => {
-      activeImageId.value = null
-      activeImageTimer = null
+    activeMediaTimer = setTimeout(() => {
+      activeMediaId.value = null
+      activeMediaTimer = null
     }, 3000)
   }
 }
 
 // 将窗口置于最前
-const bringToFront = async (image: FloatingImage) => {
-  await floatingImageStore.bringToFront(image.id)
+const bringToFront = async (media: FloatingMedia) => {
+  await floatingMediaStore.bringToFront(media.id)
 }
 
 // 处理窗口鼠标按下
-const handleWindowMouseDown = (e: MouseEvent, image: FloatingImage) => {
-  bringToFront(image)
+const handleWindowMouseDown = (e: MouseEvent, media: FloatingMedia) => {
+  bringToFront(media)
 }
 
 // 处理窗口触摸开始
-const handleWindowTouchStart = (e: TouchEvent, image: FloatingImage) => {
-  bringToFront(image)
-  setActiveImage(image.id)
+const handleWindowTouchStart = (e: TouchEvent, media: FloatingMedia) => {
+  bringToFront(media)
+  setActiveMedia(media.id)
 }
 
 // 开始拖拽
-const startDrag = (e: MouseEvent, image: FloatingImage) => {
+const startDrag = (e: MouseEvent, media: FloatingMedia) => {
   e.preventDefault()
   e.stopPropagation()
 
   dragState.isDragging = true
-  dragState.imageId = image.id
+  dragState.mediaId = media.id
   dragState.startX = e.clientX
   dragState.startY = e.clientY
-  dragState.initialX = image.x
-  dragState.initialY = image.y
+  dragState.initialX = media.x
+  dragState.initialY = media.y
 
-  bringToFront(image)
+  bringToFront(media)
 }
 
 // 触摸开始拖拽
-const startDragTouch = (e: TouchEvent, image: FloatingImage) => {
+const startDragTouch = (e: TouchEvent, media: FloatingMedia) => {
   if (e.touches.length !== 1) return
   e.preventDefault()
   e.stopPropagation()
 
   const touch = e.touches[0]!
   dragState.isDragging = true
-  dragState.imageId = image.id
+  dragState.mediaId = media.id
   dragState.startX = touch.clientX
   dragState.startY = touch.clientY
-  dragState.initialX = image.x
-  dragState.initialY = image.y
+  dragState.initialX = media.x
+  dragState.initialY = media.y
 
-  bringToFront(image)
-  setActiveImage(image.id)
+  bringToFront(media)
+  setActiveMedia(media.id)
 }
 
 // 处理拖拽移动
 const handleDragMove = (e: MouseEvent) => {
-  if (dragState.isDragging && dragState.imageId) {
-    const image = floatingImages.value.find(img => img.id === dragState.imageId)
-    if (image) {
+  if (dragState.isDragging && dragState.mediaId) {
+    const media = mediaList.value.find(m => m.id === dragState.mediaId)
+    if (media) {
       const deltaX = e.clientX - dragState.startX
       const deltaY = e.clientY - dragState.startY
-      image.x = Math.max(0, dragState.initialX + deltaX)
-      image.y = Math.max(0, dragState.initialY + deltaY)
+      media.x = Math.max(0, dragState.initialX + deltaX)
+      media.y = Math.max(0, dragState.initialY + deltaY)
     }
   }
 }
 
 // 处理触摸拖拽移动
 const handleDragMoveTouch = (e: TouchEvent) => {
-  if (dragState.isDragging && dragState.imageId && e.touches.length === 1) {
+  if (dragState.isDragging && dragState.mediaId && e.touches.length === 1) {
     const touch = e.touches[0]!
-    const image = floatingImages.value.find(img => img.id === dragState.imageId)
-    if (image) {
+    const media = mediaList.value.find(m => m.id === dragState.mediaId)
+    if (media) {
       const deltaX = touch.clientX - dragState.startX
       const deltaY = touch.clientY - dragState.startY
-      image.x = Math.max(0, dragState.initialX + deltaX)
-      image.y = Math.max(0, dragState.initialY + deltaY)
+      media.x = Math.max(0, dragState.initialX + deltaX)
+      media.y = Math.max(0, dragState.initialY + deltaY)
     }
   }
 }
 
 // 结束拖拽
 const endDrag = async () => {
-  if (dragState.isDragging && dragState.imageId) {
-    const image = floatingImages.value.find(img => img.id === dragState.imageId)
-    if (image) {
-      await floatingImageStore.updateImage(dragState.imageId, {
-        x: image.x,
-        y: image.y
+  if (dragState.isDragging && dragState.mediaId) {
+    const media = mediaList.value.find(m => m.id === dragState.mediaId)
+    if (media) {
+      await floatingMediaStore.updateMedia(dragState.mediaId, {
+        x: media.x,
+        y: media.y
       })
     }
   }
   dragState.isDragging = false
-  dragState.imageId = null
+  dragState.mediaId = null
 }
 
 // 开始调整大小
-const startResize = (e: MouseEvent, image: FloatingImage, direction: string) => {
+const startResize = (e: MouseEvent, media: FloatingMedia, direction: string) => {
   e.preventDefault()
   e.stopPropagation()
 
   resizeState.isResizing = true
-  resizeState.imageId = image.id
+  resizeState.mediaId = media.id
   resizeState.direction = direction
   resizeState.startX = e.clientX
   resizeState.startY = e.clientY
-  resizeState.initialWidth = image.width
-  resizeState.initialHeight = image.height
-  resizeState.initialX = image.x
-  resizeState.initialY = image.y
-  resizeState.aspectRatio = image.aspectRatio
+  resizeState.initialWidth = media.width
+  resizeState.initialHeight = media.height
+  resizeState.initialX = media.x
+  resizeState.initialY = media.y
+  resizeState.aspectRatio = media.aspectRatio || (media.width / media.height)
 
-  bringToFront(image)
+  bringToFront(media)
 }
 
 // 触摸开始调整大小
-const startResizeTouch = (e: TouchEvent, image: FloatingImage, direction: string) => {
+const startResizeTouch = (e: TouchEvent, media: FloatingMedia, direction: string) => {
   if (e.touches.length !== 1) return
   e.preventDefault()
   e.stopPropagation()
 
   const touch = e.touches[0]!
   resizeState.isResizing = true
-  resizeState.imageId = image.id
+  resizeState.mediaId = media.id
   resizeState.direction = direction
   resizeState.startX = touch.clientX
   resizeState.startY = touch.clientY
-  resizeState.initialWidth = image.width
-  resizeState.initialHeight = image.height
-  resizeState.initialX = image.x
-  resizeState.initialY = image.y
-  resizeState.aspectRatio = image.aspectRatio
+  resizeState.initialWidth = media.width
+  resizeState.initialHeight = media.height
+  resizeState.initialX = media.x
+  resizeState.initialY = media.y
+  resizeState.aspectRatio = media.aspectRatio || (media.width / media.height)
 
-  bringToFront(image)
-  setActiveImage(image.id)
+  bringToFront(media)
+  setActiveMedia(media.id)
 }
 
 // 处理调整大小移动
 const handleResizeMove = (e: MouseEvent) => {
-  if (resizeState.isResizing && resizeState.imageId) {
-    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
-    if (!image) return
+  if (resizeState.isResizing && resizeState.mediaId) {
+    const media = mediaList.value.find(m => m.id === resizeState.mediaId)
+    if (!media) return
 
     const deltaX = e.clientX - resizeState.startX
     const deltaY = e.clientY - resizeState.startY
@@ -565,53 +631,6 @@ const handleResizeMove = (e: MouseEvent) => {
     let newX = resizeState.initialX
     let newY = resizeState.initialY
 
-    // 根据方向计算新尺寸（保持宽高比）
-    switch (resizeState.direction) {
-      case 'se': // 东南角
-        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        break
-      case 'sw': // 西南角
-        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
-        break
-      case 'ne': // 东北角
-        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
-        break
-      case 'nw': // 西北角
-        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
-        newHeight = newWidth / resizeState.aspectRatio
-        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
-        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
-        break
-    }
-
-    image.width = newWidth
-    image.height = newHeight
-    image.x = newX
-    image.y = newY
-  }
-}
-
-// 处理触摸调整大小移动
-const handleResizeMoveTouch = (e: TouchEvent) => {
-  if (resizeState.isResizing && resizeState.imageId && e.touches.length === 1) {
-    const touch = e.touches[0]!
-    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
-    if (!image) return
-
-    const deltaX = touch.clientX - resizeState.startX
-    const deltaY = touch.clientY - resizeState.startY
-
-    let newWidth = resizeState.initialWidth
-    let newHeight = resizeState.initialHeight
-    let newX = resizeState.initialX
-    let newY = resizeState.initialY
-
-    // 根据方向计算新尺寸（保持宽高比）
     switch (resizeState.direction) {
       case 'se':
         newWidth = Math.max(1, resizeState.initialWidth + deltaX)
@@ -635,42 +654,86 @@ const handleResizeMoveTouch = (e: TouchEvent) => {
         break
     }
 
-    image.width = newWidth
-    image.height = newHeight
-    image.x = newX
-    image.y = newY
+    media.width = newWidth
+    media.height = newHeight
+    media.x = newX
+    media.y = newY
+  }
+}
+
+// 处理触摸调整大小移动
+const handleResizeMoveTouch = (e: TouchEvent) => {
+  if (resizeState.isResizing && resizeState.mediaId && e.touches.length === 1) {
+    const touch = e.touches[0]!
+    const media = mediaList.value.find(m => m.id === resizeState.mediaId)
+    if (!media) return
+
+    const deltaX = touch.clientX - resizeState.startX
+    const deltaY = touch.clientY - resizeState.startY
+
+    let newWidth = resizeState.initialWidth
+    let newHeight = resizeState.initialHeight
+    let newX = resizeState.initialX
+    let newY = resizeState.initialY
+
+    switch (resizeState.direction) {
+      case 'se':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        break
+      case 'sw':
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        break
+      case 'ne':
+        newWidth = Math.max(1, resizeState.initialWidth + deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+      case 'nw':
+        newWidth = Math.max(1, resizeState.initialWidth - deltaX)
+        newHeight = newWidth / resizeState.aspectRatio
+        newX = resizeState.initialX + (resizeState.initialWidth - newWidth)
+        newY = resizeState.initialY + (resizeState.initialHeight - newHeight)
+        break
+    }
+
+    media.width = newWidth
+    media.height = newHeight
+    media.x = newX
+    media.y = newY
   }
 }
 
 // 结束调整大小
 const endResize = () => {
-  if (resizeState.isResizing && resizeState.imageId) {
-    const image = floatingImages.value.find(img => img.id === resizeState.imageId)
-    if (image) {
-      floatingImageStore.updateImage(resizeState.imageId, {
-        x: image.x,
-        y: image.y,
-        width: image.width,
-        height: image.height
+  if (resizeState.isResizing && resizeState.mediaId) {
+    const media = mediaList.value.find(m => m.id === resizeState.mediaId)
+    if (media) {
+      floatingMediaStore.updateMedia(resizeState.mediaId, {
+        x: media.x,
+        y: media.y,
+        width: media.width,
+        height: media.height
       })
     }
   }
   resizeState.isResizing = false
-  resizeState.imageId = null
+  resizeState.mediaId = null
   resizeState.direction = ''
 }
 
 // 处理图片加载
-const handleImageLoad = async (e: Event, image: FloatingImage) => {
+const handleImageLoad = async (e: Event, media: FloatingMedia) => {
   const img = e.target as HTMLImageElement
   const naturalWidth = img.naturalWidth
   const naturalHeight = img.naturalHeight
   const aspectRatio = img.naturalWidth / img.naturalHeight
 
-  // 根据图片比例调整初始高度
-  const newHeight = image.width / aspectRatio
+  const newHeight = media.width / aspectRatio
 
-  await floatingImageStore.updateImage(image.id, {
+  await floatingMediaStore.updateMedia(media.id, {
     naturalWidth,
     naturalHeight,
     aspectRatio,
@@ -678,26 +741,49 @@ const handleImageLoad = async (e: Event, image: FloatingImage) => {
   })
 }
 
+// 处理视频加载
+const handleVideoLoad = async (e: Event, media: FloatingMedia) => {
+  const video = e.target as HTMLVideoElement
+  const naturalWidth = video.videoWidth
+  const naturalHeight = video.videoHeight
+  const aspectRatio = naturalWidth / naturalHeight
+  const duration = video.duration
+
+  const newHeight = media.width / aspectRatio
+
+  await floatingMediaStore.updateMedia(media.id, {
+    naturalWidth,
+    naturalHeight,
+    aspectRatio,
+    height: newHeight,
+    videoDuration: isNaN(duration) ? undefined : duration
+  })
+}
+
+// 更新媒体
+const updateMedia = async (id: string, updates: Partial<FloatingMedia>) => {
+  await floatingMediaStore.updateMedia(id, updates)
+}
+
 // 获取窗口样式
-const getWindowStyle = (image: FloatingImage) => {
+const getWindowStyle = (media: FloatingMedia) => {
   return {
-    left: `${image.x}px`,
-    top: `${image.y}px`,
-    width: `${image.width}px`,
-    zIndex: image.zIndex
+    left: `${media.x}px`,
+    top: `${media.y}px`,
+    width: `${media.width}px`,
+    zIndex: media.zIndex
   }
 }
 
 // 获取内容区域样式
-const getContentStyle = (image: FloatingImage) => {
+const getContentStyle = (media: FloatingMedia) => {
   return {
-    height: `${image.height}px`
+    height: `${media.height}px`
   }
 }
 
 // 获取按钮样式
 const getButtonStyle = () => {
-  // 如果正在拖拽，使用固定定位
   if (buttonPosition.value.x !== 0 || buttonPosition.value.y !== 50) {
     return {
       position: 'fixed',
@@ -707,7 +793,6 @@ const getButtonStyle = () => {
       transform: 'none'
     }
   }
-  // 默认样式：右侧居中
   return {
     position: 'fixed',
     right: '24px',
@@ -718,7 +803,6 @@ const getButtonStyle = () => {
 
 // 开始拖拽按钮
 const startButtonDrag = (e: MouseEvent) => {
-  // 只有左键才能拖拽
   if (e.button !== 0) return
 
   buttonDragState.isDragging = true
@@ -726,7 +810,6 @@ const startButtonDrag = (e: MouseEvent) => {
   buttonDragState.startX = e.clientX
   buttonDragState.startY = e.clientY
 
-  // 如果按钮还在默认位置，先转换为像素位置
   if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
     const buttonEl = e.currentTarget as HTMLElement
     const rect = buttonEl.getBoundingClientRect()
@@ -748,7 +831,6 @@ const startButtonDragTouch = (e: TouchEvent) => {
   buttonDragState.startX = touch.clientX
   buttonDragState.startY = touch.clientY
 
-  // 如果按钮还在默认位置，先转换为像素位置
   if (buttonPosition.value.x === 0 && buttonPosition.value.y === 50) {
     const buttonEl = e.currentTarget as HTMLElement
     const rect = buttonEl.getBoundingClientRect()
@@ -766,7 +848,6 @@ const handleButtonDragMove = (e: MouseEvent) => {
     const deltaX = e.clientX - buttonDragState.startX
     const deltaY = e.clientY - buttonDragState.startY
 
-    // 如果移动距离超过阈值，标记为已移动
     const moveThreshold = 5
     if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
       buttonDragState.hasMoved = true
@@ -775,7 +856,6 @@ const handleButtonDragMove = (e: MouseEvent) => {
     buttonPosition.value.x = buttonDragState.initialX + deltaX
     buttonPosition.value.y = buttonDragState.initialY + deltaY
 
-    // 限制在视窗内
     const buttonSize = 56
     buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
     buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
@@ -789,7 +869,6 @@ const handleButtonDragMoveTouch = (e: TouchEvent) => {
     const deltaX = touch.clientX - buttonDragState.startX
     const deltaY = touch.clientY - buttonDragState.startY
 
-    // 如果移动距离超过阈值，标记为已移动
     const moveThreshold = 5
     if (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold) {
       buttonDragState.hasMoved = true
@@ -798,7 +877,6 @@ const handleButtonDragMoveTouch = (e: TouchEvent) => {
     buttonPosition.value.x = buttonDragState.initialX + deltaX
     buttonPosition.value.y = buttonDragState.initialY + deltaY
 
-    // 限制在视窗内
     const buttonSize = 56
     buttonPosition.value.x = Math.max(0, Math.min(window.innerWidth - buttonSize, buttonPosition.value.x))
     buttonPosition.value.y = Math.max(0, Math.min(window.innerHeight - buttonSize, buttonPosition.value.y))
@@ -812,7 +890,6 @@ const endButtonDrag = () => {
 
 // 处理按钮点击
 const handleButtonClick = (e: MouseEvent) => {
-  // 如果移动过，不触发点击
   if (buttonDragState.hasMoved) {
     e.stopPropagation()
     return
@@ -823,24 +900,22 @@ const handleButtonClick = (e: MouseEvent) => {
 // 点击空白处隐藏手脚架
 const handleClickOutside = (e: MouseEvent) => {
   const target = e.target as HTMLElement
-  if (!target.closest('.image-window')) {
-    setActiveImage(null)
+  if (!target.closest('.media-window')) {
+    setActiveMedia(null)
   }
 }
 
 // 触摸结束时的焦点释放处理
 const handleTouchEndOutside = (e: TouchEvent) => {
-  // 如果正在拖拽或调整大小，不处理
   if (dragState.isDragging || resizeState.isResizing || buttonDragState.isDragging) {
     return
   }
 
-  // 如果触摸结束时不在图片窗口上，释放焦点
   if (e.changedTouches.length > 0) {
     const touch = e.changedTouches[0]!
     const target = document.elementFromPoint(touch.clientX, touch.clientY)
-    if (target && !target.closest('.image-window')) {
-      setActiveImage(null)
+    if (target && !target.closest('.media-window')) {
+      setActiveMedia(null)
     }
   }
 }
@@ -854,7 +929,6 @@ onMounted(() => {
   document.addEventListener('mouseup', endResize)
   document.addEventListener('mouseup', endButtonDrag)
   document.addEventListener('click', handleClickOutside)
-  // 触摸事件监听
   document.addEventListener('touchmove', handleDragMoveTouch, { passive: false })
   document.addEventListener('touchmove', handleResizeMoveTouch, { passive: false })
   document.addEventListener('touchmove', handleButtonDragMoveTouch, { passive: false })
@@ -872,7 +946,6 @@ onUnmounted(() => {
   document.removeEventListener('mouseup', endResize)
   document.removeEventListener('mouseup', endButtonDrag)
   document.removeEventListener('click', handleClickOutside)
-  // 触摸事件移除
   document.removeEventListener('touchmove', handleDragMoveTouch)
   document.removeEventListener('touchmove', handleResizeMoveTouch)
   document.removeEventListener('touchmove', handleButtonDragMoveTouch)
@@ -884,7 +957,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.floating-image-viewer {
+.floating-media-viewer {
   position: fixed;
   top: 0;
   left: 0;
@@ -894,8 +967,8 @@ onUnmounted(() => {
   z-index: 9999;
 }
 
-/* 悬浮图片窗口 */
-.image-window {
+/* 悬浮媒体窗口 */
+.media-window {
   position: absolute;
   background: white;
   border-radius: 12px;
@@ -904,16 +977,15 @@ onUnmounted(() => {
   pointer-events: auto;
   user-select: none;
   transition: box-shadow 0.3s ease;
-  /* 防止触摸时触发页面滚动 */
   touch-action: none;
 }
 
-.image-window:hover,
-.image-window.is-active {
+.media-window:hover,
+.media-window.is-active {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
 }
 
-.image-window.is-dragging {
+.media-window.is-dragging {
   cursor: grabbing;
 }
 
@@ -964,6 +1036,14 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
+.window-content video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #000;
+}
+
 /* 调整大小手柄 */
 .resize-handle {
   position: absolute;
@@ -979,8 +1059,8 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 }
 
-.image-window.is-active .floating-close-btn,
-.image-window.is-active .resize-handle {
+.media-window.is-active .floating-close-btn,
+.media-window.is-active .resize-handle {
   opacity: 1;
   transform: scale(1);
 }
@@ -1031,7 +1111,6 @@ onUnmounted(() => {
   transition: all 0.3s ease;
   cursor: grab;
   user-select: none;
-  /* 防止触摸时触发页面滚动 */
   touch-action: none;
 }
 
@@ -1047,12 +1126,12 @@ onUnmounted(() => {
   transition: none;
 }
 
-.viewer-trigger.has-images {
+.viewer-trigger.has-media {
   background: linear-gradient(135deg, #67c23a, #85ce61);
   box-shadow: 0 4px 16px rgba(103, 194, 58, 0.4);
 }
 
-.image-count {
+.media-count {
   position: absolute;
   top: -4px;
   right: -4px;
@@ -1068,23 +1147,28 @@ onUnmounted(() => {
 }
 
 /* 动画 */
-.image-window-enter-active,
-.image-window-leave-active {
+.media-window-enter-active,
+.media-window-leave-active {
   transition: all 0.3s ease;
 }
 
-.image-window-enter-from {
+.media-window-enter-from {
   opacity: 0;
   transform: scale(0.8) translateY(20px);
 }
 
-.image-window-leave-to {
+.media-window-leave-to {
   opacity: 0;
   transform: scale(0.8);
 }
 
-/* 上传对话框样式 */
-.image-uploader {
+/* Tab 样式 */
+.media-tabs :deep(.el-tabs__header) {
+  margin-bottom: 16px;
+}
+
+/* 上传区域 */
+.media-uploader {
   text-align: center;
 }
 
@@ -1110,33 +1194,60 @@ onUnmounted(() => {
   color: #999;
 }
 
-/* 已上传图片列表 */
-.uploaded-images {
+/* 视频输入区域 */
+.video-input-section {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.video-input-section .el-input {
+  flex: 1;
+}
+
+.video-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: #f5f7fa;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.video-hint .el-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* 已添加媒体列表 */
+.uploaded-media {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 1px solid #eee;
 }
 
-.uploaded-images h4 {
+.uploaded-media h4 {
   margin: 0 0 16px;
   font-size: 14px;
   color: #333;
 }
 
-.image-list {
+.media-list {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.image-item {
+.media-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
 
-.image-item img {
+.media-item img {
   width: 100px;
   height: 100px;
   object-fit: cover;
@@ -1145,12 +1256,46 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-.image-item.is-hidden img {
+.media-item.is-hidden img {
   border-color: #ccc;
   opacity: 0.5;
 }
 
-.image-item .image-controls {
+.media-item .video-thumbnail {
+  width: 100px;
+  height: 100px;
+  border-radius: 8px;
+  border: 2px solid #eee;
+  background: linear-gradient(135deg, #2c3e50, #34495e);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: white;
+  transition: all 0.3s ease;
+}
+
+.media-item.is-hidden .video-thumbnail {
+  border-color: #ccc;
+  opacity: 0.5;
+}
+
+.media-item .video-thumbnail .el-icon {
+  font-size: 32px;
+  color: #ff85a2;
+}
+
+.media-item .video-name {
+  font-size: 11px;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+}
+
+.media-item .media-controls {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -1158,7 +1303,7 @@ onUnmounted(() => {
   gap: 12px;
 }
 
-.image-controls .delete-btn {
+.media-controls .delete-btn {
   width: 28px;
   height: 28px;
   padding: 0;
@@ -1166,7 +1311,6 @@ onUnmounted(() => {
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-  /* 触发按钮增大触摸区域 */
   .viewer-trigger {
     width: 64px;
     height: 64px;
@@ -1182,8 +1326,7 @@ onUnmounted(() => {
     transform: scale(1.05);
   }
 
-  /* 图片计数徽章 */
-  .image-count {
+  .media-count {
     width: 24px;
     height: 24px;
     font-size: 14px;
@@ -1191,14 +1334,12 @@ onUnmounted(() => {
     right: -6px;
   }
 
-  /* 图片窗口 */
-  .image-window {
+  .media-window {
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   }
 
-  /* 关闭按钮增大 - 只在激活状态显示 */
-  .image-window.is-active .floating-close-btn {
+  .media-window.is-active .floating-close-btn {
     width: 36px;
     height: 36px;
     font-size: 18px;
@@ -1208,40 +1349,37 @@ onUnmounted(() => {
     transform: scale(1);
   }
 
-  /* 调整大小手柄增大 - 只在激活状态显示 */
-  .image-window.is-active .resize-handle {
+  .media-window.is-active .resize-handle {
     width: 20px;
     height: 20px;
     opacity: 1;
     transform: scale(1);
   }
 
-  .image-window.is-active .resize-se {
+  .media-window.is-active .resize-se {
     right: -10px;
     bottom: -10px;
   }
 
-  .image-window.is-active .resize-sw {
+  .media-window.is-active .resize-sw {
     left: -10px;
     bottom: -10px;
   }
 
-  .image-window.is-active .resize-ne {
+  .media-window.is-active .resize-ne {
     right: -10px;
     top: -10px;
   }
 
-  .image-window.is-active .resize-nw {
+  .media-window.is-active .resize-nw {
     left: -10px;
     top: -10px;
   }
 
-  /* 窗口内容 */
   .window-content {
     border-radius: 8px;
   }
 
-  /* 上传对话框 */
   .upload-icon {
     font-size: 36px;
   }
@@ -1254,32 +1392,34 @@ onUnmounted(() => {
     font-size: 11px;
   }
 
-  /* 图片列表 */
-  .image-item img {
+  .media-item img,
+  .media-item .video-thumbnail {
     width: 80px;
     height: 80px;
   }
 
-  .image-controls .delete-btn {
+  .media-controls .delete-btn {
     width: 32px;
     height: 32px;
+  }
+
+  .video-input-section {
+    flex-direction: column;
   }
 }
 
 /* 触摸设备优化 */
 @media (pointer: coarse) {
-  /* 关闭按钮和手柄只在激活状态显示 */
-  .image-window.is-active .floating-close-btn {
+  .media-window.is-active .floating-close-btn {
     opacity: 1;
     transform: scale(1);
   }
 
-  .image-window.is-active .resize-handle {
+  .media-window.is-active .resize-handle {
     opacity: 1;
     transform: scale(1);
   }
 
-  /* 移除 hover 效果（触摸设备无 hover） */
   .floating-close-btn:hover {
     transform: scale(1);
     box-shadow: 0 2px 8px rgba(255, 107, 107, 0.4);
@@ -1294,7 +1434,6 @@ onUnmounted(() => {
     box-shadow: 0 4px 16px rgba(255, 133, 162, 0.4);
   }
 
-  /* 添加 active 效果替代 hover */
   .floating-close-btn:active {
     transform: scale(1.1);
     box-shadow: 0 4px 12px rgba(255, 107, 107, 0.6);
