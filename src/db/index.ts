@@ -6,7 +6,7 @@ import type {
   PromptTemplate,
   ModelConfig,
   AppSettings,
-  FloatingMedia
+  FloatingImage
 } from '@/types'
 import type { ImageRecord } from '@/utils/imageStorage'
 import { toStorable } from '@/utils/storable'
@@ -18,7 +18,7 @@ export interface SettingsRecord {
 
 export interface FloatingImagesRecord {
   id: string
-  images: FloatingMedia[]
+  images: FloatingImage[]
   maxZIndex: number
 }
 
