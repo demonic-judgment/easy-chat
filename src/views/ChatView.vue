@@ -855,6 +855,7 @@ const handlePreviewRequest = async (content: string, images?: PendingImage[]) =>
   font-size: 16px;
   font-weight: 500;
   color: #333;
+  padding-right: 100px;
 }
 
 .header-avatar {
