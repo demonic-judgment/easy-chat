@@ -458,6 +458,27 @@ const truncate = (str: string, length: number) => {
   flex-direction: column;
   gap: 8px;
   margin-bottom: 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* 智能体列表滚动条样式 */
+.agent-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.agent-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.agent-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 133, 162, 0.3);
+  border-radius: 2px;
+}
+
+.agent-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 133, 162, 0.5);
 }
 
 .agent-item {
