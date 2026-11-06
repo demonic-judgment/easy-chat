@@ -12,6 +12,20 @@ const props = defineProps<{
   content: string
 }>()
 
+// 规范化换行：非代码块内，任何数量的连续换行都合并为 2 个换行（段间空行效果）
+function normalizeLineBreaks(text: string): string {
+  // 先提取并保护代码块（```...```），避免内部换行被合并
+  const codeBlocks: string[] = []
+  let protectedText = text.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match)
+    return `\u0000CODE_BLOCK_${codeBlocks.length - 1}\u0000`
+  })
+  // 合并所有连续的 \n（包括 \r\n）为 \n\n
+  protectedText = protectedText.replace(/\r\n/g, '\n').replace(/\n+/g, '\n\n')
+  // 恢复代码块
+  return protectedText.replace(/\u0000CODE_BLOCK_(\d+)\u0000/g, (_, idx) => codeBlocks[Number(idx)])
+}
+
 // 引号高亮处理函数 - 在文本级别处理
 function highlightQuotes(text: string): string {
   // 匹配各类引号对及其内容
@@ -49,7 +63,8 @@ marked.use({
 })
 
 const renderedContent = computed(() => {
-  return marked.parse(props.content || '')
+  const normalized = normalizeLineBreaks(props.content || '')
+  return marked.parse(normalized)
 })
 </script>
 
