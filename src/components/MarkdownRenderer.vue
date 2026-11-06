@@ -23,7 +23,7 @@ function normalizeLineBreaks(text: string): string {
   // 合并所有连续的 \n（包括 \r\n）为 \n\n
   protectedText = protectedText.replace(/\r\n/g, '\n').replace(/\n+/g, '\n\n')
   // 恢复代码块
-  return protectedText.replace(/\u0000CODE_BLOCK_(\d+)\u0000/g, (_, idx) => codeBlocks[Number(idx)])
+  return protectedText.replace(/\u0000CODE_BLOCK_(\d+)\u0000/g, (_, idx) => codeBlocks[Number(idx)]!)
 }
 
 // 引号高亮处理函数 - 在文本级别处理
