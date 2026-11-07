@@ -9,6 +9,8 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "npm run build && wrangler dev",
     "build-only": "vite build",
+    "build:edgeone": "vite build --mode edgeone",
+    "dev:edgeone": "edgeone makers dev",
     "type-check": "vue-tsc --build",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types"
@@ -38,6 +40,6 @@
     "wrangler": "^4.87.0"
   },
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=20.18.0"
   }
 }
