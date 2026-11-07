@@ -51,13 +51,11 @@ function updateServiceWorkerVersion(): import('vite').Plugin {
 }
 
 // https://vite.dev/config/
-// `vite build --mode edgeone` 时跳过 Cloudflare 插件，产出纯静态 dist 供 EdgeOne Makers 托管；
-// 默认的 wrangler / vite dev 链路保持原样，两条部署路径互不干扰。
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
 	plugins: [
 		vue(),
 		vueDevTools(),
-		...(mode === "edgeone" ? [] : [cloudflare()]),
+		cloudflare(),
 		updateServiceWorkerVersion()
 	],
 	resolve: {
@@ -69,4 +67,4 @@ export default defineConfig(({ mode }) => ({
 		port: 5173,
 		strictPort: true
 	}
-}))
+})

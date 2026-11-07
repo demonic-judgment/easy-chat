@@ -44,10 +44,3 @@ __screenshots__/
 !.dev.vars.example
 .env*
 !.env.example
-
-# EdgeOne Makers CLI local state (.edgeone/routes.json etc.)
-.edgeone/
-.edgeone-*
-
-# WorkBuddy local project data (memory / session notes)
-.workbuddy/
